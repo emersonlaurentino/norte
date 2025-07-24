@@ -338,86 +338,7 @@ const optionsRouter = new Router(variantsRouter, 'options', {
 // Handler receives: { storeId, productId, variantId, id }
 ```
 
-### Sururu E-commerce Example
 
-```typescript
-// Pharmacy domain structure
-const pharmacyRouter = new Router('pharmacies', {
-  schema: pharmacySchema
-})
-  .list(async ({ user }) => {
-    const pharmacies = await db
-      .select()
-      .from(pharmacyTable)
-      .where(eq(pharmacyTable.userId, user.id))
-    return pharmacies
-  })
-
-// Categories nested under pharmacies
-const categoriesRouter = new Router(pharmacyRouter, 'categories', {
-  schema: categorySchema
-})
-  .list(async ({ param }) => {
-    // param.pharmacyId automatically available
-    const categories = await db
-      .select()
-      .from(categoryTable)
-      .where(eq(categoryTable.pharmacyId, param.pharmacyId))
-    return categories
-  })
-
-// Products nested under categories
-const productsRouter = new Router(categoriesRouter, 'products', {
-  schema: productSchema
-})
-  .list(async ({ param }) => {
-    // param contains: { pharmacyId, categoryId }
-    const products = await db
-      .select()
-      .from(productTable)
-      .where(eq(productTable.categoryId, param.categoryId))
-    return products
-  })
-  .create(
-    { input: createInsertSchema(productTable) },
-    async ({ input, param }) => {
-      // All parent parameters automatically available
-      const [product] = await db
-        .insert(productTable)
-        .values({
-          ...input,
-          categoryId: param.categoryId,
-          pharmacyId: param.pharmacyId
-        })
-        .returning()
-      return product
-    }
-  )
-
-// Deep nesting: variants under products
-const variantsRouter = new Router(productsRouter, 'variants', {
-  schema: variantSchema
-})
-  .read(async ({ param }) => {
-    // param contains: { pharmacyId, categoryId, productId, id }
-    const [variant] = await db
-      .select()
-      .from(variantTable)
-      .where(eq(variantTable.id, param.id))
-    
-    if (!variant) {
-      return new NorteError('NOT_FOUND', 'Variant not found')
-    }
-    
-    return variant
-  })
-
-// Register all domain routers
-app.register(pharmacyRouter)
-app.register(categoriesRouter)
-app.register(productsRouter)
-app.register(variantsRouter)
-```
 
 ### Domain Constructor Patterns
 
@@ -534,13 +455,26 @@ The documentation includes:
 
 ### Custom Middleware
 
+Norte comes with `logger` and `prettyJSON` middlewares configured by default. You can add any additional Hono middleware through the `middleware()` method:
+
 ```typescript
 import { cors } from 'hono/cors'
+import { compress } from 'hono/compress'
 
+// Add CORS middleware
 app.middleware(cors({
   origin: ['https://yourdomain.com'],
   credentials: true
 }))
+
+// Add compression middleware
+app.middleware(compress())
+
+// Custom middleware
+app.middleware(async (c, next) => {
+  console.log('Custom middleware executed')
+  await next()
+})
 ```
 
 ### Parameter Validation
@@ -697,7 +631,7 @@ We welcome contributions! Please see our contributing guide for details.
 
 ## 📄 License
 
-MIT © Laurentino Company
+MIT © Emerson Laurentino
 
 ## 🔗 Links
 
