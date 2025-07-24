@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { NorteError, type ErrorCode } from '../error'
+import { type ErrorCode, NorteError } from '../error'
 
 describe('NorteError', () => {
   describe('constructor', () => {
     it('should create error with NOT_FOUND code', () => {
       const error = new NorteError('NOT_FOUND', 'Resource not found')
-      
+
       expect(error).toBeInstanceOf(Error)
       expect(error).toBeInstanceOf(NorteError)
       expect(error.name).toBe('NorteError')
@@ -17,49 +17,56 @@ describe('NorteError', () => {
 
     it('should create error with INVALID_INPUT code', () => {
       const error = new NorteError('INVALID_INPUT', 'Invalid data provided')
-      
+
       expect(error.code).toBe('INVALID_INPUT')
       expect(error.statusCode).toBe(400)
     })
 
     it('should create error with UNAUTHORIZED code', () => {
       const error = new NorteError('UNAUTHORIZED', 'Authentication required')
-      
+
       expect(error.code).toBe('UNAUTHORIZED')
       expect(error.statusCode).toBe(401)
     })
 
     it('should create error with FORBIDDEN code', () => {
       const error = new NorteError('FORBIDDEN', 'Access denied')
-      
+
       expect(error.code).toBe('FORBIDDEN')
       expect(error.statusCode).toBe(403)
     })
 
     it('should create error with CONFLICT code', () => {
       const error = new NorteError('CONFLICT', 'Resource conflict')
-      
+
       expect(error.code).toBe('CONFLICT')
       expect(error.statusCode).toBe(409)
     })
 
     it('should create error with INTERNAL_SERVER_ERROR code', () => {
-      const error = new NorteError('INTERNAL_SERVER_ERROR', 'Something went wrong')
-      
+      const error = new NorteError(
+        'INTERNAL_SERVER_ERROR',
+        'Something went wrong',
+      )
+
       expect(error.code).toBe('INTERNAL_SERVER_ERROR')
       expect(error.statusCode).toBe(500)
     })
 
     it('should create error with details', () => {
       const details = { field: 'email', issue: 'invalid format' }
-      const error = new NorteError('INVALID_INPUT', 'Validation failed', details)
-      
+      const error = new NorteError(
+        'INVALID_INPUT',
+        'Validation failed',
+        details,
+      )
+
       expect(error.details).toEqual(details)
     })
 
     it('should have correct error message inheritance', () => {
       const error = new NorteError('NOT_FOUND', 'Custom message')
-      
+
       expect(error.message).toBe('Custom message')
       expect(error.toString()).toContain('Custom message')
     })

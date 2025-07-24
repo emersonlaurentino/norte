@@ -1,5 +1,4 @@
-import { beforeAll, afterAll, afterEach } from 'vitest'
-import { vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 
 // Global test setup
 beforeAll(() => {

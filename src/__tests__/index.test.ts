@@ -12,7 +12,7 @@ describe('index exports', () => {
   it('should export NorteError from error module', () => {
     expect(index.NorteError).toBeDefined()
     expect(typeof index.NorteError).toBe('function')
-    
+
     const error = new index.NorteError('NOT_FOUND', 'Test error')
     expect(error).toBeInstanceOf(Error)
     expect(error.code).toBe('NOT_FOUND')
@@ -33,14 +33,14 @@ describe('index exports', () => {
     // that the error codes work with NorteError
     const validCodes = [
       'NOT_FOUND',
-      'INVALID_INPUT', 
+      'INVALID_INPUT',
       'UNAUTHORIZED',
       'FORBIDDEN',
       'CONFLICT',
-      'INTERNAL_SERVER_ERROR'
+      'INTERNAL_SERVER_ERROR',
     ] as const
 
-    validCodes.forEach(code => {
+    validCodes.forEach((code) => {
       const error = new index.NorteError(code, 'Test message')
       expect(error.code).toBe(code)
     })
@@ -49,13 +49,13 @@ describe('index exports', () => {
   it('should have all expected exports', () => {
     const expectedExports = [
       'z',
-      'NorteError', 
+      'NorteError',
       'Norte',
       'Router',
-      'commonResponses'
+      'commonResponses',
     ]
 
-    expectedExports.forEach(exportName => {
+    expectedExports.forEach((exportName) => {
       expect(index).toHaveProperty(exportName)
     })
   })
@@ -63,10 +63,10 @@ describe('index exports', () => {
   it('should export commonResponses from router module', () => {
     expect(index.commonResponses).toBeDefined()
     expect(typeof index.commonResponses).toBe('object')
-    
+
     // Check that it has expected status codes
     const expectedStatusCodes = [400, 401, 403, 404, 409, 500]
-    expectedStatusCodes.forEach(status => {
+    expectedStatusCodes.forEach((status) => {
       expect(index.commonResponses).toHaveProperty(status.toString())
     })
   })

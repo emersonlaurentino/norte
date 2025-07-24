@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { Norte } from '../norte'
 import { Router } from '../router'
@@ -13,7 +13,6 @@ vi.mock('@hono/zod-openapi', () => ({
     route = vi.fn().mockReturnThis()
     on = vi.fn().mockReturnThis()
     fetch = vi.fn().mockResolvedValue(new Response('OK'))
-    constructor() {}
   },
 }))
 
@@ -73,7 +72,7 @@ describe('Norte', () => {
   describe('constructor', () => {
     it('should create Norte instance with required config', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(norte).toBeInstanceOf(Norte)
     })
 
@@ -82,15 +81,15 @@ describe('Norte', () => {
         title: 'Test API',
         authConfig: mockAuthConfig,
       }
-      
+
       const norte = new Norte(configWithoutVersion)
-      
+
       expect(norte).toBeInstanceOf(Norte)
     })
 
     it('should setup middlewares during construction', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(norte).toBeInstanceOf(Norte)
       // Middleware setup is verified indirectly through the instance creation
     })
@@ -100,9 +99,9 @@ describe('Norte', () => {
     it('should allow adding custom middleware', () => {
       const norte = new Norte(mockConfig)
       const customMiddleware = vi.fn()
-      
+
       const result = norte.middleware(customMiddleware)
-      
+
       expect(result).toBeDefined()
     })
 
@@ -110,9 +109,9 @@ describe('Norte', () => {
       const norte = new Norte(mockConfig)
       const middleware1 = vi.fn()
       const middleware2 = vi.fn()
-      
+
       const result = norte.middleware(middleware1, middleware2)
-      
+
       expect(result).toBeDefined()
     })
   })
@@ -125,9 +124,9 @@ describe('Norte', () => {
         name: z.string(),
       })
       const router = new Router('users', { schema: mockSchema })
-      
+
       const result = norte.register(router)
-      
+
       expect(result).toBeDefined()
     })
   })
@@ -135,25 +134,25 @@ describe('Norte', () => {
   describe('fetch method', () => {
     it('should have a fetch method', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(typeof norte.fetch).toBe('function')
     })
 
     it('should be callable as a function', async () => {
       const norte = new Norte(mockConfig)
       const mockRequest = new Request('http://localhost/test')
-      
+
       const result = await norte.fetch(mockRequest)
-      
+
       expect(result).toBeInstanceOf(Response)
     })
 
     it('should proxy to hono fetch', async () => {
       const norte = new Norte(mockConfig)
       const mockRequest = new Request('http://localhost/healthcheck')
-      
+
       const result = await norte.fetch(mockRequest)
-      
+
       expect(result).toBeInstanceOf(Response)
     })
   })
@@ -161,7 +160,7 @@ describe('Norte', () => {
   describe('health check', () => {
     it('should setup healthcheck endpoint during construction', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(norte).toBeInstanceOf(Norte)
       // Health check setup is verified through the constructor call
     })
@@ -170,7 +169,7 @@ describe('Norte', () => {
   describe('authentication setup', () => {
     it('should setup authentication with provided config', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(norte).toBeInstanceOf(Norte)
       // Auth setup is verified through the constructor call
     })
@@ -179,7 +178,7 @@ describe('Norte', () => {
   describe('documentation setup', () => {
     it('should setup OpenAPI documentation', () => {
       const norte = new Norte(mockConfig)
-      
+
       expect(norte).toBeInstanceOf(Norte)
       // Documentation setup is verified through the constructor call
     })
@@ -190,9 +189,9 @@ describe('Norte', () => {
         version: '2.0.0',
         authConfig: mockAuthConfig,
       }
-      
+
       const norte = new Norte(configWithVersion)
-      
+
       expect(norte).toBeInstanceOf(Norte)
     })
 
@@ -201,9 +200,9 @@ describe('Norte', () => {
         title: 'My API',
         authConfig: mockAuthConfig,
       }
-      
+
       const norte = new Norte(configWithoutVersion)
-      
+
       expect(norte).toBeInstanceOf(Norte)
     })
   })
@@ -211,25 +210,25 @@ describe('Norte', () => {
   describe('integration', () => {
     it('should work with multiple routers', () => {
       const norte = new Norte(mockConfig)
-      
+
       const userSchema = z.object({
         id: z.string(),
         name: z.string(),
         email: z.string(),
       })
-      
+
       const postSchema = z.object({
         id: z.string(),
         title: z.string(),
         content: z.string(),
       })
-      
+
       const userRouter = new Router('users', { schema: userSchema })
       const postRouter = new Router('posts', { schema: postSchema })
-      
+
       norte.register(userRouter)
       norte.register(postRouter)
-      
+
       expect(norte).toBeInstanceOf(Norte)
     })
   })
