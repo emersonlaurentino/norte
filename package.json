@@ -3,22 +3,19 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "unbuild",
-    "prepack": "unbuild",
-    "format": "bun biome format --write .",
-    "lint": "bun biome lint .",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
     "test": "vitest",
     "test:run": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage"
   },
   "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    }
+    ".": "./dist/index.js"
   },
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
@@ -38,11 +35,11 @@
     "hono": "^4.8.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.0.0",
+    "@biomejs/biome": "2.1.2",
     "@vitest/coverage-v8": "^3.2.4",
-    "better-auth": "^1.3.2",
+    "better-auth": "^1.3.3",
+    "tsdown": "^0.13.0",
     "typescript": "^5.8.3",
-    "unbuild": "^3.6.0",
     "vitest": "^3.2.4"
   }
 }
