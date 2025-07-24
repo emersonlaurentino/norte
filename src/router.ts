@@ -3,7 +3,7 @@ import type { Session, User } from 'better-auth'
 import { createMiddleware } from 'hono/factory'
 import { NorteError } from './error'
 
-interface RoutesConfig<TResponse extends z.ZodTypeAny> {
+interface RouterConfig<TResponse extends z.ZodType> {
   schema: TResponse
 }
 
@@ -17,7 +17,7 @@ type HandlerContext = {
 }
 
 // Type-safe handler types with parameter inheritance
-type ListHandler<TResponse extends z.ZodTypeAny> = (
+type ListHandler<TResponse extends z.ZodType> = (
   c: HandlerContext & {
     param: Record<string, string>
   },
@@ -26,27 +26,21 @@ type ListHandler<TResponse extends z.ZodTypeAny> = (
   | z.infer<TResponse>[]
   | NorteError
 
-type InsertHandler<
-  TInput extends z.ZodTypeAny,
-  TResponse extends z.ZodTypeAny,
-> = (
+type InsertHandler<TInput extends z.ZodType, TResponse extends z.ZodType> = (
   c: HandlerContext & {
     input: z.infer<TInput>
     param: Record<string, string>
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
-type UpdateHandler<
-  TInput extends z.ZodTypeAny,
-  TResponse extends z.ZodTypeAny,
-> = (
+type UpdateHandler<TInput extends z.ZodType, TResponse extends z.ZodType> = (
   c: HandlerContext & {
     input: z.infer<TInput>
     param: Record<string, string> & { id: string }
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
-type ReadHandler<TResponse extends z.ZodTypeAny> = (
+type ReadHandler<TResponse extends z.ZodType> = (
   c: HandlerContext & {
     param: Record<string, string> & { id: string }
   },
@@ -58,30 +52,30 @@ type DeleteHandler = (
   },
 ) => Promise<undefined | NorteError> | undefined | NorteError
 
-export class Router<TResponse extends z.ZodTypeAny> {
+export class Router<TResponse extends z.ZodType> {
   private name: string
   private domain: string
   private path: string
   private schema: TResponse
   private router: OpenAPIHono
-  private parent: Router<z.ZodTypeAny> | null = null
+  private parent: Router<z.ZodType> | null = null
 
   // Constructor overloads
-  constructor(domain: string, config: RoutesConfig<TResponse>)
+  constructor(domain: string, config: RouterConfig<TResponse>)
   constructor(
-    parent: Router<z.ZodTypeAny>,
+    parent: Router<z.ZodType>,
     domain: string,
-    config: RoutesConfig<TResponse>,
+    config: RouterConfig<TResponse>,
   )
   constructor(
-    domainOrParent: string | Router<z.ZodTypeAny>,
-    domainOrConfig: string | RoutesConfig<TResponse>,
-    config?: RoutesConfig<TResponse>,
+    domainOrParent: string | Router<z.ZodType>,
+    domainOrConfig: string | RouterConfig<TResponse>,
+    config?: RouterConfig<TResponse>,
   ) {
     if (typeof domainOrParent === 'string') {
       // Root router: new Router('stores', config)
       this.domain = domainOrParent
-      this.schema = (domainOrConfig as RoutesConfig<TResponse>).schema
+      this.schema = (domainOrConfig as RouterConfig<TResponse>).schema
     } else {
       // Nested router: new Router(parent, 'products', config)
       this.parent = domainOrParent
@@ -142,7 +136,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
   private getParentParams(): string[] {
     const params: string[] = []
 
-    let current: Router<z.ZodTypeAny> | null = this.parent
+    let current: Router<z.ZodType> | null = this.parent
     while (current) {
       params.unshift(current.getDomainParam())
       current = current.parent
@@ -193,7 +187,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
   }
 
   // Friend access method for Route class
-  public static getRouterForRoute<TResponse extends z.ZodTypeAny>(
+  public static getRouterForRoute<TResponse extends z.ZodType>(
     router: Router<TResponse>,
   ) {
     return router.getRouter()
@@ -261,9 +255,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
     })
   }
 
-  private createDefinition(
-    config: RouteCommonConfig & { input: z.ZodTypeAny },
-  ) {
+  private createDefinition(config: RouteCommonConfig & { input: z.ZodType }) {
     const parentParams = this.getParentParams()
     const hasParentParams = parentParams.length > 0
 
@@ -306,7 +298,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
     })
   }
 
-  private getUpdateRoute(config: RouteCommonConfig & { input: z.ZodTypeAny }) {
+  private getUpdateRoute(config: RouteCommonConfig & { input: z.ZodType }) {
     return createRoute({
       method: 'patch',
       path: `${this.path}/:id`,
@@ -492,7 +484,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
     return this
   }
 
-  public create<TInput extends z.ZodTypeAny>(
+  public create<TInput extends z.ZodType>(
     config: RouteCommonConfig & { input: TInput },
     handler: InsertHandler<TInput, TResponse>,
   ) {
@@ -587,7 +579,7 @@ export class Router<TResponse extends z.ZodTypeAny> {
     return this
   }
 
-  public update<TInput extends z.ZodTypeAny>(
+  public update<TInput extends z.ZodType>(
     config: RouteCommonConfig & { input: TInput },
     handler: UpdateHandler<TInput, TResponse>,
   ) {
