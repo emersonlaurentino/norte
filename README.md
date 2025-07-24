@@ -18,11 +18,13 @@ A modern, type-safe API framework that simplifies building production-ready REST
 ### Installation
 
 ```bash
-npm install norte
+bun add norte better-auth
 # or
-yarn add norte
+npm install norte better-auth
 # or
-pnpm add norte
+yarn add norte better-auth
+# or
+pnpm add norte better-auth
 ```
 
 ### Basic Usage
