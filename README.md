@@ -42,7 +42,7 @@ const app = new Norte({
 })
 
 // 2. Define your response schema
-const userSchema = z.object({
+const selectSchema = z.object({
   id: z.string().cuid2(),
   name: z.string(),
   email: z.string().email(),
@@ -50,29 +50,21 @@ const userSchema = z.object({
   createdAt: z.date()
 })
 
-const createUserSchema = z.object({
+const insertSchema = z.object({
   name: z.string(),
   email: z.string().email(),
   age: z.number().min(18)
 })
 
 // 3. Create a router with CRUD operations using domain-driven approach
-const userRouter = new Router('users', {
-  schema: userSchema
-})
-  .list(async ({ session, user }) => {
-    // Return array of users or NorteError
-    const users = await getUsersFromDB()
-    return users
+const userRouter = new Router('users', { schema: selectSchema })
+  .list(async () => {
+    return await getUsersFromDB()
   })
-  .create(
-    { input: createUserSchema },
-    async ({ session, user, input }) => {
-      const newUser = await createUser(input)
-      return newUser
-    }
-  )
-  .read(async ({ session, user, param }) => {
+  .create({ input: insertSchema }, async ({ input }) => {
+    return await createUser(input)
+  })
+  .read(async ({ param }) => {
     const foundUser = await getUserById(param.id)
     if (!foundUser) {
       return new NorteError('NOT_FOUND', 'User not found')
@@ -80,8 +72,8 @@ const userRouter = new Router('users', {
     return foundUser
   })
   .update(
-    { input: createUserSchema.partial() },
-    async ({ session, user, input, param }) => {
+    { input: insertSchema.partial() },
+    async ({ input, param }) => {
       const updatedUser = await updateUser(param.id, input)
       if (!updatedUser) {
         return new NorteError('NOT_FOUND', 'User not found')
@@ -89,12 +81,11 @@ const userRouter = new Router('users', {
       return updatedUser
     }
   )
-  .delete(async ({ session, user, param }) => {
+  .delete(async ({ param }) => {
     const deleted = await deleteUser(param.id)
     if (!deleted) {
       return new NorteError('NOT_FOUND', 'User not found')
     }
-    return undefined // Success
   })
 
 // 4. Register the router
@@ -517,7 +508,7 @@ import { eq } from 'drizzle-orm'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 
 const userResponseSchema = createSelectSchema(userTable)
-const createUserSchema = createInsertSchema(userTable).omit({ 
+const insertSchema = createInsertSchema(userTable).omit({ 
   id: true, 
   createdAt: true, 
   updatedAt: true 
@@ -532,7 +523,7 @@ const userRouter = new Router('users', {
     return users
   })
   .create(
-    { input: createUserSchema },
+    { input: insertSchema },
     async ({ input, user }) => {
       const [newUser] = await db
         .insert(userTable)
