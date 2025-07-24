@@ -4,7 +4,6 @@ import { type ErrorCode, NorteError } from '../error'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
-// Mock the external dependencies but not our own modules
 vi.mock('@hono/zod-openapi', () => ({
   OpenAPIHono: class MockOpenAPIHono {
     use = vi.fn().mockReturnThis()
@@ -76,7 +75,6 @@ describe('Integration Tests', () => {
 
       const userRouter = new Router('users', { schema: userSchema })
 
-      // Add handlers to the router
       userRouter
         .list(() => [])
         .create(
@@ -99,7 +97,6 @@ describe('Integration Tests', () => {
         }))
         .delete(() => undefined)
 
-      // Register router with Norte
       const result = norte.register(userRouter)
 
       expect(result).toBeDefined()
@@ -177,7 +174,6 @@ describe('Integration Tests', () => {
 
       const userRouter = new Router('users', { schema: userSchema })
 
-      // Handler that returns a NorteError
       userRouter.list(() => new NorteError('NOT_FOUND', 'No users found'))
 
       norte.register(userRouter)

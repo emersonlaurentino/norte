@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { NorteError } from '../error'
 import { Router } from '../router'
 
-// Mock zod-openapi
 vi.mock('@hono/zod-openapi', () => ({
   OpenAPIHono: class MockOpenAPIHono {
     openapi = vi.fn().mockReturnThis()
@@ -17,7 +16,6 @@ vi.mock('@hono/zod-openapi', () => ({
   },
 }))
 
-// Mock hono/factory
 vi.mock('hono/factory', () => ({
   createMiddleware: vi.fn((fn) => fn),
 }))
@@ -49,7 +47,6 @@ describe('Router', () => {
   describe('path generation', () => {
     it('should generate correct path for root router', () => {
       const router = new Router('users', { schema: mockSchema })
-      // We can't directly test private methods, but we can test their effects through public methods
       expect(router).toBeInstanceOf(Router)
     })
 
@@ -70,7 +67,7 @@ describe('Router', () => {
 
       const result = router.list(handler)
 
-      expect(result).toBe(router) // Should return this for chaining
+      expect(result).toBe(router)
       expect(handler).toBeDefined()
     })
 

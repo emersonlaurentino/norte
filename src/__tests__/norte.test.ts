@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
-// Mock dependencies
 vi.mock('@hono/zod-openapi', () => ({
   OpenAPIHono: class MockOpenAPIHono {
     use = vi.fn().mockReturnThis()
@@ -43,6 +42,7 @@ vi.mock('hono/factory', () => ({
 
 vi.mock('../router', () => ({
   Router: class MockRouter {
+    // biome-ignore lint/complexity/noUselessConstructor: constructor
     constructor(..._args: unknown[]) {
       // Mock router constructor with overloaded signature support
     }
@@ -91,7 +91,6 @@ describe('Norte', () => {
       const norte = new Norte(mockConfig)
 
       expect(norte).toBeInstanceOf(Norte)
-      // Middleware setup is verified indirectly through the instance creation
     })
   })
 
@@ -162,7 +161,6 @@ describe('Norte', () => {
       const norte = new Norte(mockConfig)
 
       expect(norte).toBeInstanceOf(Norte)
-      // Health check setup is verified through the constructor call
     })
   })
 
@@ -171,7 +169,6 @@ describe('Norte', () => {
       const norte = new Norte(mockConfig)
 
       expect(norte).toBeInstanceOf(Norte)
-      // Auth setup is verified through the constructor call
     })
   })
 
@@ -180,7 +177,6 @@ describe('Norte', () => {
       const norte = new Norte(mockConfig)
 
       expect(norte).toBeInstanceOf(Norte)
-      // Documentation setup is verified through the constructor call
     })
 
     it('should use provided title and version', () => {
