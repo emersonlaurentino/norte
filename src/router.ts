@@ -4,7 +4,9 @@ import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
 import { NorteError } from './error'
 
-interface RouterConfig<TResponse extends z.ZodType> {
+type ZodSchema = z.ZodTypeAny
+
+interface RouterConfig<TResponse extends ZodSchema> {
   schema: TResponse
 }
 
@@ -18,7 +20,7 @@ type HandlerContext = {
 }
 
 // Type-safe handler types with parameter inheritance
-type ListHandler<TResponse extends z.ZodType> = (
+type ListHandler<TResponse extends ZodSchema> = (
   c: HandlerContext & {
     param: Record<string, string>
   },
@@ -27,21 +29,21 @@ type ListHandler<TResponse extends z.ZodType> = (
   | z.infer<TResponse>[]
   | NorteError
 
-type InsertHandler<TInput extends z.ZodType, TResponse extends z.ZodType> = (
+type InsertHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
   c: HandlerContext & {
     input: z.infer<TInput>
     param: Record<string, string>
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
-type UpdateHandler<TInput extends z.ZodType, TResponse extends z.ZodType> = (
+type UpdateHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
   c: HandlerContext & {
     input: z.infer<TInput>
     param: Record<string, string> & { id: string }
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
-type ReadHandler<TResponse extends z.ZodType> = (
+type ReadHandler<TResponse extends ZodSchema> = (
   c: HandlerContext & {
     param: Record<string, string> & { id: string }
   },
@@ -53,23 +55,23 @@ type DeleteHandler = (
   },
 ) => Promise<undefined | NorteError> | undefined | NorteError
 
-export class Router<TResponse extends z.ZodType> {
+export class Router<TResponse extends ZodSchema> {
   private name: string
   private domain: string
   private path: string
   private schema: TResponse
   private router: OpenAPIHono
-  private parent: Router<z.ZodType> | null = null
+  private parent: Router<ZodSchema> | null = null
 
   // Constructor overloads
   constructor(domain: string, config: RouterConfig<TResponse>)
   constructor(
-    parent: Router<z.ZodType>,
+    parent: Router<ZodSchema>,
     domain: string,
     config: RouterConfig<TResponse>,
   )
   constructor(
-    domainOrParent: string | Router<z.ZodType>,
+    domainOrParent: string | Router<ZodSchema>,
     domainOrConfig: string | RouterConfig<TResponse>,
     config?: RouterConfig<TResponse>,
   ) {
@@ -137,7 +139,7 @@ export class Router<TResponse extends z.ZodType> {
   private getParentParams(): string[] {
     const params: string[] = []
 
-    let current: Router<z.ZodType> | null = this.parent
+    let current: Router<ZodSchema> | null = this.parent
     while (current) {
       params.unshift(current.getDomainParam())
       current = current.parent
@@ -188,7 +190,7 @@ export class Router<TResponse extends z.ZodType> {
   }
 
   // Friend access method for Route class
-  public static getRouterForRoute<TResponse extends z.ZodType>(
+  public static getRouterForRoute<TResponse extends ZodSchema>(
     router: Router<TResponse>,
   ) {
     return router.getRouter()
@@ -216,6 +218,47 @@ export class Router<TResponse extends z.ZodType> {
       return lowercaseName.slice(0, -1)
     }
     return lowercaseName
+  }
+
+  /**
+   * Safely validate data with the schema, providing better error handling
+   * for drizzle-zod schemas
+   */
+  private validateSchema(
+    data: unknown,
+  ):
+    | { success: true; data: z.infer<TResponse> }
+    | { success: false; error: z.ZodError } {
+    try {
+      // First try to parse with the schema
+      const result = this.schema.safeParse(data)
+      if (result.success) {
+        return { success: true, data: result.data }
+      }
+      return { success: false, error: result.error }
+    } catch {
+      // Fallback for schemas that might not have safeParse method correctly implemented
+      try {
+        const parsedData = this.schema.parse(data)
+        return { success: true, data: parsedData }
+      } catch (parseError) {
+        if (parseError instanceof z.ZodError) {
+          return { success: false, error: parseError }
+        }
+        // Create a generic ZodError if it's not a ZodError
+        return {
+          success: false,
+          error: new z.ZodError([
+            {
+              code: 'custom',
+              message: 'Schema validation failed',
+              path: [],
+              input: data,
+            },
+          ]),
+        }
+      }
+    }
   }
 
   private listDefinition(config: RouteCommonConfig) {
@@ -256,7 +299,7 @@ export class Router<TResponse extends z.ZodType> {
     })
   }
 
-  private createDefinition(config: RouteCommonConfig & { input: z.ZodType }) {
+  private createDefinition(config: RouteCommonConfig & { input: ZodSchema }) {
     const parentParams = this.getParentParams()
     const hasParentParams = parentParams.length > 0
 
@@ -299,7 +342,7 @@ export class Router<TResponse extends z.ZodType> {
     })
   }
 
-  private getUpdateRoute(config: RouteCommonConfig & { input: z.ZodType }) {
+  private getUpdateRoute(config: RouteCommonConfig & { input: ZodSchema }) {
     return createRoute({
       method: 'patch',
       path: `${this.path}/:id`,
@@ -485,7 +528,7 @@ export class Router<TResponse extends z.ZodType> {
     return this
   }
 
-  public create<TInput extends z.ZodType>(
+  public create<TInput extends ZodSchema>(
     config: RouteCommonConfig & { input: TInput },
     handler: InsertHandler<TInput, TResponse>,
   ) {
@@ -541,7 +584,7 @@ export class Router<TResponse extends z.ZodType> {
           return c.json(errorResponse, result.statusCode)
         }
 
-        const validatedData = this.schema.safeParse(result)
+        const validatedData = this.validateSchema(result)
 
         if (!validatedData.success) {
           return c.json(
@@ -580,7 +623,7 @@ export class Router<TResponse extends z.ZodType> {
     return this
   }
 
-  public update<TInput extends z.ZodType>(
+  public update<TInput extends ZodSchema>(
     config: RouteCommonConfig & { input: TInput },
     handler: UpdateHandler<TInput, TResponse>,
   ) {
@@ -638,7 +681,7 @@ export class Router<TResponse extends z.ZodType> {
           return c.json(errorResponse, result.statusCode)
         }
 
-        const validatedData = this.schema.safeParse(result)
+        const validatedData = this.validateSchema(result)
 
         if (!validatedData.success) {
           return c.json(
@@ -739,7 +782,7 @@ export class Router<TResponse extends z.ZodType> {
           return c.json(errorResponse, result.statusCode)
         }
 
-        const validatedData = this.schema.safeParse(result)
+        const validatedData = this.validateSchema(result)
 
         if (!validatedData.success) {
           return c.json(
