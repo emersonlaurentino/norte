@@ -19,41 +19,28 @@ type HandlerContext = {
   user: User | null
 }
 
-// Type-safe handler types with parameter inheritance
+// Simplified handler types
+type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
+
 type ListHandler<TResponse extends ZodSchema> = (
-  c: HandlerContext & {
-    param: Record<string, string>
-  },
-) =>
-  | Promise<z.infer<TResponse>[] | NorteError>
-  | z.infer<TResponse>[]
-  | NorteError
+  c: HandlerContext & { param: Record<string, string> },
+) => HandlerResult<z.infer<TResponse>[]>
 
 type InsertHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
-  c: HandlerContext & {
-    input: z.infer<TInput>
-    param: Record<string, string>
-  },
-) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
+  c: HandlerContext & { input: z.infer<TInput>; param: Record<string, string> },
+) => HandlerResult<z.infer<TResponse>>
 
 type UpdateHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
-  c: HandlerContext & {
-    input: z.infer<TInput>
-    param: Record<string, string>
-  },
-) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
+  c: HandlerContext & { input: z.infer<TInput>; param: Record<string, string> },
+) => HandlerResult<z.infer<TResponse>>
 
 type ReadHandler<TResponse extends ZodSchema> = (
-  c: HandlerContext & {
-    param: Record<string, string>
-  },
-) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
+  c: HandlerContext & { param: Record<string, string> },
+) => HandlerResult<z.infer<TResponse>>
 
 type DeleteHandler = (
-  c: HandlerContext & {
-    param: Record<string, string>
-  },
-) => Promise<undefined | NorteError> | undefined | NorteError
+  c: HandlerContext & { param: Record<string, string> },
+) => HandlerResult<undefined>
 
 export class Router<TResponse extends ZodSchema> {
   private name: string
@@ -219,6 +206,65 @@ export class Router<TResponse extends ZodSchema> {
       return lowercaseName.slice(0, -1)
     }
     return lowercaseName
+  }
+
+  // Helper methods to reduce duplication
+  private resolveHandlerArgs<T>(
+    configOrHandler: RouteCommonConfig | T,
+    handler?: T,
+  ): { config: RouteCommonConfig; actualHandler: T } {
+    if (typeof configOrHandler === 'function') {
+      return { config: {}, actualHandler: configOrHandler as T }
+    }
+    return {
+      config: configOrHandler as RouteCommonConfig,
+      actualHandler: handler as T,
+    }
+  }
+
+  private extractParameters(
+    // biome-ignore lint/suspicious/noExplicitAny: Hono context typing
+    c: any,
+    includeCurrentId = false,
+  ): Record<string, string> {
+    const parentParams = this.getParentParams()
+    const allParamNames = includeCurrentId
+      ? [...parentParams, this.getDomainParam()]
+      : parentParams
+
+    const param: Record<string, string> = {}
+    for (const paramName of allParamNames) {
+      const value = c.req.param(paramName)
+      if (value) {
+        param[paramName] = value
+      }
+    }
+    return param
+  }
+
+  private createErrorResponse(error: NorteError) {
+    const response: { error: string; message: string; details?: unknown } = {
+      error: error.code,
+      message: error.message,
+    }
+    if (error.details) {
+      response.details = error.details
+    }
+    return response
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Hono context typing
+  private handleError(c: any, error: unknown) {
+    if (error instanceof NorteError) {
+      return c.json(this.createErrorResponse(error), error.statusCode)
+    }
+    if (error instanceof Error) {
+      return c.json(
+        { error: 'INTERNAL_SERVER_ERROR', details: error.message },
+        500,
+      )
+    }
+    return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 
   /**
@@ -436,62 +482,26 @@ export class Router<TResponse extends ZodSchema> {
     configOrHandler: RouteCommonConfig | ListHandler<TResponse>,
     handler?: ListHandler<TResponse>,
   ): this {
-    let config: RouteCommonConfig
-    let actualHandler: ListHandler<TResponse>
-
-    if (typeof configOrHandler === 'function') {
-      // First overload: list(handler)
-      config = {}
-      actualHandler = configOrHandler
-    } else {
-      // Second overload: list(config, handler)
-      config = configOrHandler
-      actualHandler = handler as ListHandler<TResponse>
-    }
-
+    const { config, actualHandler } = this.resolveHandlerArgs(
+      configOrHandler,
+      handler,
+    )
     const definition = this.listDefinition(config)
 
     this.router.openapi(definition, async (c) => {
       try {
-        // Extract parent parameters from the URL
-        const parentParams = this.getParentParams()
-        const param: Record<string, string> = {}
-
-        // Get all parent parameters from the URL path
-        for (const paramName of parentParams) {
-          const value = c.req.param(paramName)
-          if (value) {
-            param[paramName] = value
-          }
-        }
-
+        const param = this.extractParameters(c)
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
           param,
         })
 
-        // Check if result is a NorteError
         if (result instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: result.code,
-            message: result.message,
-          }
-
-          if (result.details) {
-            errorResponse.details = result.details
-          }
-
-          return c.json(errorResponse, result.statusCode)
+          return c.json(this.createErrorResponse(result), result.statusCode)
         }
 
-        // Validate that the result is an array of items matching the schema
         const validatedData = z.array(this.schema).safeParse(result)
-
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -501,29 +511,7 @@ export class Router<TResponse extends ZodSchema> {
 
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        if (error instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: error.code,
-            message: error.message,
-          }
-
-          if (error.details) {
-            errorResponse.details = error.details
-          }
-
-          return c.json(errorResponse, error.statusCode)
-        }
-        if (error instanceof Error) {
-          return c.json(
-            { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-            500,
-          )
-        }
-        return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+        return this.handleError(c, error)
       }
     })
     return this
@@ -548,18 +536,7 @@ export class Router<TResponse extends ZodSchema> {
           )
         }
 
-        // Extract parent parameters from the URL
-        const parentParams = this.getParentParams()
-        const param: Record<string, string> = {}
-
-        // Get all parent parameters from the URL path
-        for (const paramName of parentParams) {
-          const value = c.req.param(paramName)
-          if (value) {
-            param[paramName] = value
-          }
-        }
-
+        const param = this.extractParameters(c)
         const result = await handler({
           session: c.get('session'),
           user: c.get('user'),
@@ -567,26 +544,11 @@ export class Router<TResponse extends ZodSchema> {
           param,
         })
 
-        // Check if result is a NorteError
         if (result instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: result.code,
-            message: result.message,
-          }
-
-          if (result.details) {
-            errorResponse.details = result.details
-          }
-
-          return c.json(errorResponse, result.statusCode)
+          return c.json(this.createErrorResponse(result), result.statusCode)
         }
 
         const validatedData = this.validateSchema(result)
-
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -596,29 +558,7 @@ export class Router<TResponse extends ZodSchema> {
 
         return c.json({ data: validatedData.data }, 201)
       } catch (error) {
-        if (error instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: error.code,
-            message: error.message,
-          }
-
-          if (error.details) {
-            errorResponse.details = error.details
-          }
-
-          return c.json(errorResponse, error.statusCode)
-        }
-        if (error instanceof Error) {
-          return c.json(
-            { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-            500,
-          )
-        }
-        return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+        return this.handleError(c, error)
       }
     })
     return this
@@ -634,8 +574,6 @@ export class Router<TResponse extends ZodSchema> {
     this.router.openapi(definition, async (c: any) => {
       try {
         const input = c.req.valid('json')
-        const params = c.req.valid('param')
-
         const validatedInput = config.input.safeParse(input)
 
         if (!validatedInput.success) {
@@ -645,21 +583,7 @@ export class Router<TResponse extends ZodSchema> {
           )
         }
 
-        // Extract all parameters from the URL (parent parameters + current domain parameter)
-        const parentParams = this.getParentParams()
-        const currentDomainParam = this.getDomainParam()
-        const allParamNames = [...parentParams, currentDomainParam]
-
-        const param: Record<string, string> = {}
-
-        // Get all parameters from the URL path
-        for (const paramName of allParamNames) {
-          const value = c.req.param(paramName) || params[paramName]
-          if (value) {
-            param[paramName] = value
-          }
-        }
-
+        const param = this.extractParameters(c, true)
         const result = await handler({
           session: c.get('session'),
           user: c.get('user'),
@@ -667,26 +591,11 @@ export class Router<TResponse extends ZodSchema> {
           param,
         })
 
-        // Check if result is a NorteError
         if (result instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: result.code,
-            message: result.message,
-          }
-
-          if (result.details) {
-            errorResponse.details = result.details
-          }
-
-          return c.json(errorResponse, result.statusCode)
+          return c.json(this.createErrorResponse(result), result.statusCode)
         }
 
         const validatedData = this.validateSchema(result)
-
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -696,29 +605,7 @@ export class Router<TResponse extends ZodSchema> {
 
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        if (error instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: error.code,
-            message: error.message,
-          }
-
-          if (error.details) {
-            errorResponse.details = error.details
-          }
-
-          return c.json(errorResponse, error.statusCode)
-        }
-        if (error instanceof Error) {
-          return c.json(
-            { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-            500,
-          )
-        }
-        return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+        return this.handleError(c, error)
       }
     })
     return this
@@ -730,67 +617,27 @@ export class Router<TResponse extends ZodSchema> {
     configOrHandler: RouteCommonConfig | ReadHandler<TResponse>,
     handler?: ReadHandler<TResponse>,
   ): this {
-    let config: RouteCommonConfig
-    let actualHandler: ReadHandler<TResponse>
-
-    if (typeof configOrHandler === 'function') {
-      // First overload: read(handler)
-      config = {}
-      actualHandler = configOrHandler
-    } else {
-      // Second overload: read(config, handler)
-      config = configOrHandler
-      actualHandler = handler as ReadHandler<TResponse>
-    }
-
+    const { config, actualHandler } = this.resolveHandlerArgs(
+      configOrHandler,
+      handler,
+    )
     const definition = this.getReadRoute(config)
 
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
-        const params = c.req.valid('param')
-
-        // Extract all parameters from the URL (parent parameters + current domain parameter)
-        const parentParams = this.getParentParams()
-        const currentDomainParam = this.getDomainParam()
-        const allParamNames = [...parentParams, currentDomainParam]
-
-        const param: Record<string, string> = {}
-
-        // Get all parameters from the URL path
-        for (const paramName of allParamNames) {
-          const value = c.req.param(paramName) || params[paramName]
-          if (value) {
-            param[paramName] = value
-          }
-        }
-
+        const param = this.extractParameters(c, true)
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
           param,
         })
 
-        // Check if result is a NorteError
         if (result instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: result.code,
-            message: result.message,
-          }
-
-          if (result.details) {
-            errorResponse.details = result.details
-          }
-
-          return c.json(errorResponse, result.statusCode)
+          return c.json(this.createErrorResponse(result), result.statusCode)
         }
 
         const validatedData = this.validateSchema(result)
-
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -800,29 +647,7 @@ export class Router<TResponse extends ZodSchema> {
 
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        if (error instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: error.code,
-            message: error.message,
-          }
-
-          if (error.details) {
-            errorResponse.details = error.details
-          }
-
-          return c.json(errorResponse, error.statusCode)
-        }
-        if (error instanceof Error) {
-          return c.json(
-            { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-            500,
-          )
-        }
-        return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+        return this.handleError(c, error)
       }
     })
     return this
@@ -834,91 +659,29 @@ export class Router<TResponse extends ZodSchema> {
     configOrHandler: RouteCommonConfig | DeleteHandler,
     handler?: DeleteHandler,
   ): this {
-    let config: RouteCommonConfig
-    let actualHandler: DeleteHandler
-
-    if (typeof configOrHandler === 'function') {
-      // First overload: delete(handler)
-      config = {}
-      actualHandler = configOrHandler
-    } else {
-      // Second overload: delete(config, handler)
-      config = configOrHandler
-      actualHandler = handler as DeleteHandler
-    }
-
+    const { config, actualHandler } = this.resolveHandlerArgs(
+      configOrHandler,
+      handler,
+    )
     const definition = this.getDeleteRoute(config)
 
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
-        const params = c.req.valid('param')
-
-        // Extract all parameters from the URL (parent parameters + current domain parameter)
-        const parentParams = this.getParentParams()
-        const currentDomainParam = this.getDomainParam()
-        const allParamNames = [...parentParams, currentDomainParam]
-
-        const param: Record<string, string> = {}
-
-        // Get all parameters from the URL path
-        for (const paramName of allParamNames) {
-          const value = c.req.param(paramName) || params[paramName]
-          if (value) {
-            param[paramName] = value
-          }
-        }
-
+        const param = this.extractParameters(c, true)
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
           param,
         })
 
-        // Check if result is a NorteError
         if (result instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: result.code,
-            message: result.message,
-          }
-
-          if (result.details) {
-            errorResponse.details = result.details
-          }
-
-          return c.json(errorResponse, result.statusCode)
+          return c.json(this.createErrorResponse(result), result.statusCode)
         }
 
-        // If undefined (successful deletion), return 204 No Content
         return c.body(null, 204)
       } catch (error) {
-        if (error instanceof NorteError) {
-          const errorResponse: {
-            error: string
-            message: string
-            details?: unknown
-          } = {
-            error: error.code,
-            message: error.message,
-          }
-
-          if (error.details) {
-            errorResponse.details = error.details
-          }
-
-          return c.json(errorResponse, error.statusCode)
-        }
-        if (error instanceof Error) {
-          return c.json(
-            { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-            500,
-          )
-        }
-        return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+        return this.handleError(c, error)
       }
     })
     return this
@@ -927,7 +690,7 @@ export class Router<TResponse extends ZodSchema> {
 
 const errorSchema = z.object({ error: z.string() })
 
-export const commonResponses = {
+const commonResponses = {
   400: {
     description: 'Bad Request',
     content: {
