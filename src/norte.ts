@@ -1,4 +1,4 @@
-import { OpenAPIHono, type z } from '@hono/zod-openapi'
+import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import type { BetterAuthOptions, Session, User } from 'better-auth'
 import { betterAuth } from 'better-auth'
@@ -6,6 +6,7 @@ import type { MiddlewareHandler } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
+import type { z } from 'zod'
 import { Router } from './router'
 
 declare module 'hono' {

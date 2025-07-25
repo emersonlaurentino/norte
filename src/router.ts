@@ -1,6 +1,7 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
 import type { Session, User } from 'better-auth'
 import { createMiddleware } from 'hono/factory'
+import { z } from 'zod'
 import { NorteError } from './error'
 
 interface RouterConfig<TResponse extends z.ZodType> {

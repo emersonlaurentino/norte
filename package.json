@@ -32,7 +32,8 @@
   "dependencies": {
     "@hono/zod-openapi": "^1.0.2",
     "@scalar/hono-api-reference": "^0.9.12",
-    "hono": "^4.8.5"
+    "hono": "^4.8.8",
+    "zod": "^4.0.10"
   },
   "devDependencies": {
     "@biomejs/biome": "2.1.2",
