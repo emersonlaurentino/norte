@@ -39,19 +39,19 @@ type InsertHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
 type UpdateHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
   c: HandlerContext & {
     input: z.infer<TInput>
-    param: Record<string, string> & { id: string }
+    param: Record<string, string>
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
 type ReadHandler<TResponse extends ZodSchema> = (
   c: HandlerContext & {
-    param: Record<string, string> & { id: string }
+    param: Record<string, string>
   },
 ) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
 type DeleteHandler = (
   c: HandlerContext & {
-    param: Record<string, string> & { id: string }
+    param: Record<string, string>
   },
 ) => Promise<undefined | NorteError> | undefined | NorteError
 
@@ -171,7 +171,8 @@ export class Router<TResponse extends ZodSchema> {
    */
   private getParameterSchemaWithId() {
     const parentParams = this.getParentParams()
-    const allParams = [...parentParams, 'id']
+    const currentParam = this.getDomainParam()
+    const allParams = [...parentParams, currentParam]
 
     return z.object(
       allParams.reduce(
@@ -345,7 +346,7 @@ export class Router<TResponse extends ZodSchema> {
   private getUpdateRoute(config: RouteCommonConfig & { input: ZodSchema }) {
     return createRoute({
       method: 'patch',
-      path: `${this.path}/:id`,
+      path: `${this.path}/:${this.getDomainParam()}`,
       tags: [this.name],
       summary: `Update a ${this.getSingularName()}`,
       ...(config.isPublic ? {} : this.privateFields()),
@@ -383,7 +384,7 @@ export class Router<TResponse extends ZodSchema> {
   private getReadRoute(config: RouteCommonConfig) {
     return createRoute({
       method: 'get',
-      path: `${this.path}/:id`,
+      path: `${this.path}/:${this.getDomainParam()}`,
       tags: [this.name],
       summary: `Get a ${this.getSingularName()} by ID`,
       ...(config.isPublic ? {} : this.privateFields()),
@@ -411,7 +412,7 @@ export class Router<TResponse extends ZodSchema> {
   private getDeleteRoute(config: RouteCommonConfig) {
     return createRoute({
       method: 'delete',
-      path: `${this.path}/:id`,
+      path: `${this.path}/:${this.getDomainParam()}`,
       tags: [this.name],
       summary: `Delete a ${this.getSingularName()}`,
       ...(config.isPublic ? {} : this.privateFields()),
@@ -633,7 +634,7 @@ export class Router<TResponse extends ZodSchema> {
     this.router.openapi(definition, async (c: any) => {
       try {
         const input = c.req.valid('json')
-        const { id } = c.req.valid('param')
+        const params = c.req.valid('param')
 
         const validatedInput = config.input.safeParse(input)
 
@@ -644,13 +645,16 @@ export class Router<TResponse extends ZodSchema> {
           )
         }
 
-        // Extract parent parameters from the URL
+        // Extract all parameters from the URL (parent parameters + current domain parameter)
         const parentParams = this.getParentParams()
-        const param: Record<string, string> & { id: string } = { id }
+        const currentDomainParam = this.getDomainParam()
+        const allParamNames = [...parentParams, currentDomainParam]
 
-        // Get all parent parameters from the URL path
-        for (const paramName of parentParams) {
-          const value = c.req.param(paramName)
+        const param: Record<string, string> = {}
+
+        // Get all parameters from the URL path
+        for (const paramName of allParamNames) {
+          const value = c.req.param(paramName) || params[paramName]
           if (value) {
             param[paramName] = value
           }
@@ -744,15 +748,18 @@ export class Router<TResponse extends ZodSchema> {
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
-        const { id } = c.req.valid('param')
+        const params = c.req.valid('param')
 
-        // Extract parent parameters from the URL
+        // Extract all parameters from the URL (parent parameters + current domain parameter)
         const parentParams = this.getParentParams()
-        const param: Record<string, string> & { id: string } = { id }
+        const currentDomainParam = this.getDomainParam()
+        const allParamNames = [...parentParams, currentDomainParam]
 
-        // Get all parent parameters from the URL path
-        for (const paramName of parentParams) {
-          const value = c.req.param(paramName)
+        const param: Record<string, string> = {}
+
+        // Get all parameters from the URL path
+        for (const paramName of allParamNames) {
+          const value = c.req.param(paramName) || params[paramName]
           if (value) {
             param[paramName] = value
           }
@@ -845,15 +852,18 @@ export class Router<TResponse extends ZodSchema> {
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
-        const { id } = c.req.valid('param')
+        const params = c.req.valid('param')
 
-        // Extract parent parameters from the URL
+        // Extract all parameters from the URL (parent parameters + current domain parameter)
         const parentParams = this.getParentParams()
-        const param: Record<string, string> & { id: string } = { id }
+        const currentDomainParam = this.getDomainParam()
+        const allParamNames = [...parentParams, currentDomainParam]
 
-        // Get all parent parameters from the URL path
-        for (const paramName of parentParams) {
-          const value = c.req.param(paramName)
+        const param: Record<string, string> = {}
+
+        // Get all parameters from the URL path
+        for (const paramName of allParamNames) {
+          const value = c.req.param(paramName) || params[paramName]
           if (value) {
             param[paramName] = value
           }

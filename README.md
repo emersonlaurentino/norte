@@ -67,7 +67,7 @@ const userRouter = new Router('users', { schema: selectSchema })
     return await createUser(input)
   })
   .read(async ({ param }) => {
-    const foundUser = await getUserById(param.id)
+    const foundUser = await getUserById(param.userId)
     if (!foundUser) {
       return new NorteError('NOT_FOUND', 'User not found')
     }
@@ -76,7 +76,7 @@ const userRouter = new Router('users', { schema: selectSchema })
   .update(
     { input: insertSchema.partial() },
     async ({ input, param }) => {
-      const updatedUser = await updateUser(param.id, input)
+      const updatedUser = await updateUser(param.userId, input)
       if (!updatedUser) {
         return new NorteError('NOT_FOUND', 'User not found')
       }
@@ -84,7 +84,7 @@ const userRouter = new Router('users', { schema: selectSchema })
     }
   )
   .delete(async ({ param }) => {
-    const deleted = await deleteUser(param.id)
+    const deleted = await deleteUser(param.userId)
     if (!deleted) {
       return new NorteError('NOT_FOUND', 'User not found')
     }
@@ -175,10 +175,10 @@ Parameters and OpenAPI tags are automatically generated from domain names:
 'categories' -> 'categoryId' (parameter) + 'Categories' (OpenAPI tag)
 'variants' -> 'variantId' (parameter) + 'Variants' (OpenAPI tag)
 
-// Handlers automatically receive all parent parameters
+// Handlers automatically receive all parent parameters + current domain parameter
 variantsRouter.read(async ({ param }) => {
-  // param contains: { storeId, productId, id }
-  const variant = await getVariant(param.id, param.productId, param.storeId)
+  // param contains: { storeId, productId, variantId }
+  const variant = await getVariant(param.variantId, param.productId, param.storeId)
   return variant
 })
 ```
@@ -243,16 +243,16 @@ type InsertHandler<TInput, TResponse> = (context: HandlerContext & {
 }) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
 type ReadHandler<TResponse> = (context: HandlerContext & {
-  param: Record<string, string> & { id: string }
+  param: Record<string, string>
 }) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
 type UpdateHandler<TInput, TResponse> = (context: HandlerContext & {
   input: z.infer<TInput>
-  param: Record<string, string> & { id: string }
+  param: Record<string, string>
 }) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
 
 type DeleteHandler = (context: HandlerContext & {
-  param: Record<string, string> & { id: string }
+  param: Record<string, string>
 }) => Promise<undefined | NorteError> | undefined | NorteError
 
 interface HandlerContext {
@@ -297,8 +297,8 @@ const productsRouter = new Router(storeRouter, 'products', {
     return products
   })
   .read(async ({ param }) => {
-    // param contains both storeId and id
-    const product = await getProductById(param.id, param.storeId)
+    // param contains both storeId and productId
+    const product = await getProductById(param.productId, param.storeId)
     return product || new NorteError('NOT_FOUND', 'Product not found')
   })
 
@@ -355,7 +355,7 @@ interface NestedParams {
   pharmacyId: string    // From parent 'pharmacies' domain
   categoryId: string    // From parent 'categories' domain  
   productId: string     // From parent 'products' domain
-  id: string           // From current route /:id
+  variantId: string     // From current 'variants' domain
 }
 
 // All parameters are automatically validated as CUID2 strings
@@ -363,7 +363,7 @@ const paramSchema = z.object({
   pharmacyId: z.string().cuid2(),
   categoryId: z.string().cuid2(),
   productId: z.string().cuid2(),
-  id: z.string().cuid2()
+  variantId: z.string().cuid2()
 })
 ```
 
@@ -385,9 +385,9 @@ type ErrorCode =
 
 // Usage in handlers
 router.read(async ({ param }) => {
-  const user = await getUserById(param.id)
+  const user = await getUserById(param.userId)
   if (!user) {
-    return new NorteError('NOT_FOUND', 'User not found', { id: param.id })
+    return new NorteError('NOT_FOUND', 'User not found', { userId: param.userId })
   }
   return user
 })
@@ -475,9 +475,9 @@ app.middleware(async (c, next) => {
 All ID parameters are automatically validated as CUID2 strings:
 
 ```typescript
-// Automatically validates param.id as z.cuid2()
-router.read(async ({ param }) => {
-  const { id } = param // id is guaranteed to be a valid CUID2
+// Automatically validates param.userId as z.cuid2()
+userRouter.read(async ({ param }) => {
+  const { userId } = param // userId is guaranteed to be a valid CUID2
   // ...
 })
 ```
@@ -538,7 +538,7 @@ const userRouter = new Router('users', {
     const [user] = await db
       .select()
       .from(userTable)
-      .where(eq(userTable.id, param.id))
+      .where(eq(userTable.id, param.userId))
     
     if (!user) {
       return new NorteError('NOT_FOUND', 'User not found')
