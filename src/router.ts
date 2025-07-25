@@ -3,6 +3,7 @@ import type { Session, User } from 'better-auth'
 import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
 import { NorteError } from './error'
+import { commonResponses } from './utils'
 
 type ZodSchema = z.ZodTypeAny
 
@@ -686,45 +687,4 @@ export class Router<TResponse extends ZodSchema> {
     })
     return this
   }
-}
-
-const errorSchema = z.object({ error: z.string() })
-
-const commonResponses = {
-  400: {
-    description: 'Bad Request',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
-  401: {
-    description: 'Unauthorized',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
-  403: {
-    description: 'Forbidden',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
-  404: {
-    description: 'Not Found',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
-  409: {
-    description: 'Conflict',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
-  500: {
-    description: 'Internal Server Error',
-    content: {
-      'application/json': { schema: errorSchema },
-    },
-  },
 }

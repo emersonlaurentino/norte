@@ -59,15 +59,4 @@ describe('index exports', () => {
       expect(index).toHaveProperty(exportName)
     })
   })
-
-  it('should export commonResponses from router module', () => {
-    expect(index.commonResponses).toBeDefined()
-    expect(typeof index.commonResponses).toBe('object')
-
-    // Check that it has expected status codes
-    const expectedStatusCodes = [400, 401, 403, 404, 409, 500]
-    expectedStatusCodes.forEach((status) => {
-      expect(index.commonResponses).toHaveProperty(status.toString())
-    })
-  })
 })
