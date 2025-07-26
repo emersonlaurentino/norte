@@ -18,30 +18,29 @@ interface RouteCommonConfig {
 type HandlerContext = {
   session: Session | null
   user: User | null
+  param: Record<string, string>
 }
 
 // Simplified handler types
 type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
 
 type ListHandler<TResponse extends ZodSchema> = (
-  c: HandlerContext & { param: Record<string, string> },
+  c: HandlerContext,
 ) => HandlerResult<z.infer<TResponse>[]>
 
 type InsertHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
-  c: HandlerContext & { input: z.infer<TInput>; param: Record<string, string> },
+  c: HandlerContext & { input: z.infer<TInput> },
 ) => HandlerResult<z.infer<TResponse>>
 
 type UpdateHandler<TInput extends ZodSchema, TResponse extends ZodSchema> = (
-  c: HandlerContext & { input: z.infer<TInput>; param: Record<string, string> },
+  c: HandlerContext & { input: z.infer<TInput> },
 ) => HandlerResult<z.infer<TResponse>>
 
 type ReadHandler<TResponse extends ZodSchema> = (
-  c: HandlerContext & { param: Record<string, string> },
+  c: HandlerContext,
 ) => HandlerResult<z.infer<TResponse>>
 
-type DeleteHandler = (
-  c: HandlerContext & { param: Record<string, string> },
-) => HandlerResult<undefined>
+type DeleteHandler = (c: HandlerContext) => HandlerResult<undefined>
 
 export class Router<TResponse extends ZodSchema> {
   private name: string
