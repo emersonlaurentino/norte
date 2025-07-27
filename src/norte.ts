@@ -95,7 +95,9 @@ export class Norte {
     this.hono.getOpenAPI31Document(openApi)
   }
 
-  public register<TResponse extends z.ZodType>(router: Router<TResponse>) {
+  public register<TResponse extends z.ZodType, TDomain extends string = string>(
+    router: Router<TResponse, TDomain>,
+  ) {
     return this.hono.route('/', Router.getRouterForRoute(router))
   }
 
