@@ -484,10 +484,11 @@ export class Router<
    * @param config - Route configuration including input schema and public access settings
    * @returns The complete route definition for Hono OpenAPI
    */
-  private createDefinition(
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
-    config: RouteCommonConfig & { input?: ZodSchema },
-  ) {
+  private createDefinition(options: {
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
+    config: RouteCommonConfig & { input?: ZodSchema }
+  }) {
+    const { operation, config } = options
     const opConfig = this.getOperationConfig(operation)
     const hasInput = Boolean(
       config.input &&
@@ -576,7 +577,7 @@ export class Router<
       configOrHandler,
       handler,
     )
-    const definition = this.createDefinition('list', config)
+    const definition = this.createDefinition({ operation: 'list', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -618,7 +619,7 @@ export class Router<
       TCollectionParams & DomainToParam<TDomain>
     >,
   ) {
-    const definition = this.createDefinition('create', config)
+    const definition = this.createDefinition({ operation: 'create', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -664,7 +665,7 @@ export class Router<
     config: RouteCommonConfig & { input: TInput },
     handler: UpdateHandler<TInput, TResponse, TItemParams>,
   ) {
-    const definition = this.createDefinition('update', config)
+    const definition = this.createDefinition({ operation: 'update', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -730,7 +731,7 @@ export class Router<
       configOrHandler,
       handler,
     )
-    const definition = this.createDefinition('read', config)
+    const definition = this.createDefinition({ operation: 'read', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -787,7 +788,7 @@ export class Router<
       configOrHandler,
       handler,
     )
-    const definition = this.createDefinition('delete', config)
+    const definition = this.createDefinition({ operation: 'delete', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
