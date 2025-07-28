@@ -335,9 +335,10 @@ export class Router<
    * @param operation The operation type (list, create, read, update, delete)
    * @returns The operation configuration
    */
-  private getOperationConfig(
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
-  ) {
+  private getOperationConfig(options: {
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
+  }) {
+    const { operation } = options
     const configs = {
       list: {
         method: 'get',
@@ -489,7 +490,7 @@ export class Router<
     config: RouteCommonConfig & { input?: ZodSchema }
   }) {
     const { operation, config } = options
-    const opConfig = this.getOperationConfig(operation)
+    const opConfig = this.getOperationConfig({ operation })
     const hasInput = Boolean(
       config.input &&
         (opConfig.method === 'post' || opConfig.method === 'patch'),
