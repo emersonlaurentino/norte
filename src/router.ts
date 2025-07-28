@@ -385,11 +385,12 @@ export class Router<
    * @param config - Route configuration object
    * @returns The request object or undefined if no parameters needed
    */
-  private buildRequestObject(
-    includeId: boolean,
-    hasInput: boolean,
-    config: RouteCommonConfig & { input?: ZodSchema },
-  ) {
+  private buildRequestObject(options: {
+    includeId: boolean
+    hasInput: boolean
+    config: RouteCommonConfig & { input?: ZodSchema }
+  }) {
+    const { includeId, hasInput, config } = options
     // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
     const request: any = {}
 
@@ -491,11 +492,11 @@ export class Router<
         (opConfig.method === 'post' || opConfig.method === 'patch'),
     )
 
-    const request = this.buildRequestObject(
-      opConfig.includeId,
+    const request = this.buildRequestObject({
+      includeId: opConfig.includeId,
       hasInput,
       config,
-    )
+    })
     const successResponse = this.buildSuccessResponse(
       operation,
       opConfig.status,
