@@ -79,7 +79,6 @@ export class Router<
 > {
   private name: string
   private domain: TDomain
-  private path: string
   private schema: TResponse
   private router: OpenAPIHono
   // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
@@ -113,16 +112,7 @@ export class Router<
 
     // Generate name from domain (capitalize first letter)
     this.name = this.domain.charAt(0).toUpperCase() + this.domain.slice(1)
-    this.path = this.getFullPath()
     this.router = new OpenAPIHono()
-  }
-
-  /**
-   * Generate path from domain
-   * 'stores' -> '/stores'
-   */
-  private getDomainPath(): string {
-    return `/${this.domain}`
   }
 
   /**
@@ -147,11 +137,14 @@ export class Router<
    * stores/products -> /stores/:storeId/products
    * stores/products/variants -> /stores/:storeId/products/:productId/variants
    */
-  private getFullPath(): string {
-    if (!this.parent) return this.getDomainPath()
-    const parentPath = this.parent.getFullPath()
-    const parentParam = this.parent.getDomainParam()
-    return `${parentPath}/:${parentParam}${this.getDomainPath()}`
+  private createPath(includeId = false): string {
+    const domainPath = `/${this.domain}${includeId ? `/:${this.getDomainParam()}` : ''}`
+    if (this.parent) {
+      const parentPath = this.parent.createPath()
+      const parentParam = this.parent.getDomainParam()
+      return `${parentPath}/:${parentParam}${domainPath}`
+    }
+    return domainPath
   }
 
   /**
@@ -168,32 +161,23 @@ export class Router<
   }
 
   /**
-   * Get parameter schema including parent parameters
+   * Get parameter schema based on whether the route includes the current domain ID
+   * @param includeCurrentId - Whether to include the current domain's ID parameter
    */
-  private getParameterSchema() {
+  private getParameterSchema(includeCurrentId = false) {
     const parentParams = this.getParentParams()
-    return z.object(
-      parentParams.reduce(
-        (acc, param) => {
-          acc[param] = z.string()
-          return acc
-        },
-        {} as Record<string, z.ZodString>,
-      ),
-    )
-  }
+    const allParams = includeCurrentId
+      ? [...parentParams, this.getDomainParam()]
+      : parentParams
 
-  /**
-   * Get parameter schema for routes that include current domain ID
-   * Used for read, update, delete operations
-   */
-  private getParamSchema() {
-    const allParams = [...this.getParentParams(), this.getDomainParam()]
+    if (allParams.length === 0) {
+      return undefined
+    }
+
     return z.object(
-      Object.fromEntries(allParams.map((k) => [k, z.string()])) as Record<
-        (typeof allParams)[number],
-        z.ZodString
-      >,
+      Object.fromEntries(
+        allParams.map((param) => [param, z.string()]),
+      ) as Record<(typeof allParams)[number], z.ZodString>,
     )
   }
 
@@ -300,151 +284,177 @@ export class Router<
     }
   }
 
+  private getOperationConfig(
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
+  ) {
+    const configs = {
+      list: {
+        method: 'get',
+        includeId: false,
+        status: 200,
+        hasData: true,
+        hasCommonErrors: true,
+      },
+      create: {
+        method: 'post',
+        includeId: false,
+        status: 201,
+        hasData: true,
+        hasCommonErrors: true,
+      },
+      read: {
+        method: 'get',
+        includeId: true,
+        status: 200,
+        hasData: true,
+        hasCommonErrors: false,
+      },
+      update: {
+        method: 'patch',
+        includeId: true,
+        status: 200,
+        hasData: true,
+        hasCommonErrors: true,
+      },
+      delete: {
+        method: 'delete',
+        includeId: true,
+        status: 204,
+        hasData: false,
+        hasCommonErrors: false,
+      },
+    }
+    return configs[operation]
+  }
+
+  private buildRequestObject(
+    includeId: boolean,
+    hasInput: boolean,
+    config: RouteCommonConfig & { input?: ZodSchema },
+  ) {
+    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
+    const request: any = {}
+
+    // Always include parameters if there are any (parent params or current id)
+    const paramSchema = this.getParameterSchema(includeId)
+    if (paramSchema) {
+      request.params = paramSchema
+    }
+
+    if (hasInput && config.input) {
+      request.body = {
+        content: { 'application/json': { schema: config.input } },
+      }
+    }
+
+    return Object.keys(request).length > 0 ? request : undefined
+  }
+
+  private buildSuccessResponse(
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
+    status: number,
+    hasData: boolean,
+  ) {
+    const descriptions: Record<typeof operation, string> = {
+      list: `List of ${this.name.toLowerCase()}`,
+      read: `${this.getSingularName()} details`,
+      create: `${this.getSingularName()} created successfully`,
+      update: `${this.getSingularName()} updated successfully`,
+      delete: `${this.getSingularName()} deleted successfully`,
+    }
+
+    if (status === 204) {
+      return { [status]: { description: descriptions[operation] } }
+    }
+
+    if (!hasData) return {}
+
+    const dataSchema =
+      operation === 'list'
+        ? z.object({ data: z.array(this.schema) })
+        : z.object({ data: this.schema })
+
+    return {
+      [status]: {
+        description: descriptions[operation],
+        content: { 'application/json': { schema: dataSchema } },
+      },
+    }
+  }
+
+  private buildErrorResponses(
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
+    includeId: boolean,
+    hasCommonErrors: boolean,
+  ) {
+    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
+    const responses: any = {}
+
+    if (hasCommonErrors && (operation === 'create' || operation === 'update')) {
+      responses[400] = commonResponses[400]
+      responses[403] = commonResponses[403]
+      responses[409] = commonResponses[409]
+    }
+
+    if (includeId || hasCommonErrors) {
+      responses[404] = commonResponses[404]
+    }
+
+    return responses
+  }
+
   private createDefinition(
     operation: 'list' | 'create' | 'read' | 'update' | 'delete',
     config: RouteCommonConfig & { input?: ZodSchema },
   ) {
-    // Map operations to HTTP methods and configurations
-    const operationConfig = {
-      list: {
-        method: 'get' as const,
-        includeId: false,
-        successStatus: 200 as const,
-        includeDataResponse: true,
-        includeCommonErrors: true,
-      },
-      create: {
-        method: 'post' as const,
-        includeId: false,
-        successStatus: 201 as const,
-        includeDataResponse: true,
-        includeCommonErrors: true,
-      },
-      read: {
-        method: 'get' as const,
-        includeId: true,
-        successStatus: 200 as const,
-        includeDataResponse: true,
-        includeCommonErrors: false, // Only 404 for read
-      },
-      update: {
-        method: 'patch' as const,
-        includeId: true,
-        successStatus: 200 as const,
-        includeDataResponse: true,
-        includeCommonErrors: true,
-      },
-      delete: {
-        method: 'delete' as const,
-        includeId: true,
-        successStatus: 204 as const,
-        includeDataResponse: false,
-        includeCommonErrors: false, // Only 404 for delete
-      },
+    const opConfig = this.getOperationConfig(operation)
+    const hasInput = Boolean(
+      config.input &&
+        (opConfig.method === 'post' || opConfig.method === 'patch'),
+    )
+
+    const request = this.buildRequestObject(
+      opConfig.includeId,
+      hasInput,
+      config,
+    )
+    const successResponse = this.buildSuccessResponse(
+      operation,
+      opConfig.status,
+      opConfig.hasData,
+    )
+    const errorResponses = this.buildErrorResponses(
+      operation,
+      opConfig.includeId,
+      opConfig.hasCommonErrors,
+    )
+
+    const summaries = {
+      list: `Get all ${this.name.toLowerCase()}`,
+      read: `Get a ${this.getSingularName()} by ID`,
+      create: `Create a new ${this.getSingularName()}`,
+      update: `Update a ${this.getSingularName()}`,
+      delete: `Delete a ${this.getSingularName()}`,
     }
-    const {
-      method,
-      includeId,
-      successStatus,
-      includeDataResponse,
-      includeCommonErrors,
-    } = operationConfig[operation]
-    const path = includeId
-      ? `${this.path}/:${this.getDomainParam()}`
-      : this.path
-    const parentParams = this.getParentParams()
-    const hasParentParams = parentParams.length > 0
-    // Build request object
-    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
-    const request: any = {}
-    // Add params if needed
-    if (includeId || hasParentParams) {
-      request.params = includeId
-        ? this.getParamSchema()
-        : this.getParameterSchema()
-    }
-    // Add body for methods that need input
-    if (config.input && (method === 'post' || method === 'patch')) {
-      request.body = {
-        content: {
-          'application/json': { schema: config.input },
-        },
-      }
-    }
-    // Build responses
-    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
-    const responses: any = {}
-    // Success response
-    if (successStatus === 204) {
-      responses[204] = {
-        description: `${this.getSingularName()} deleted successfully`,
-      }
-    } else {
-      const description =
-        operation === 'list'
-          ? `List of ${this.name.toLowerCase()}`
-          : operation === 'read'
-            ? `${this.getSingularName()} details`
-            : operation === 'create'
-              ? `${this.getSingularName()} created successfully`
-              : operation === 'update'
-                ? `${this.getSingularName()} updated successfully`
-                : 'Operation completed successfully'
-      if (includeDataResponse) {
-        const dataSchema =
-          operation === 'list'
-            ? z.object({ data: z.array(this.schema) })
-            : z.object({ data: this.schema })
-        responses[successStatus] = {
-          description,
-          content: {
-            'application/json': { schema: dataSchema },
-          },
-        }
-      }
-    }
-    // Add common error responses
-    if (includeCommonErrors) {
-      if (operation === 'create' || operation === 'update') {
-        responses[400] = commonResponses[400]
-        responses[403] = commonResponses[403]
-        responses[409] = commonResponses[409]
-      }
-    }
-    // Always add 404 for routes that might not find resources
-    if (includeId || includeCommonErrors) {
-      responses[404] = commonResponses[404]
-    }
-    // Build summary
-    const summary =
-      operation === 'list'
-        ? `Get all ${this.name.toLowerCase()}`
-        : operation === 'read'
-          ? `Get a ${this.getSingularName()} by ID`
-          : operation === 'create'
-            ? `Create a new ${this.getSingularName()}`
-            : operation === 'update'
-              ? `Update a ${this.getSingularName()}`
-              : operation === 'delete'
-                ? `Delete a ${this.getSingularName()}`
-                : 'Operation'
+
     const routeConfig: RouteConfig = {
       // biome-ignore lint/suspicious/noExplicitAny: Required for Hono method type compatibility
-      method: method as any,
-      path,
-      summary,
-      request: Object.keys(request).length > 0 ? request : undefined,
-      responses,
+      method: opConfig.method as any,
+      path: this.createPath(opConfig.includeId),
+      summary: summaries[operation],
+      request,
+      responses: {
+        ...successResponse,
+        ...errorResponses,
+        401: commonResponses[401],
+        500: commonResponses[500],
+      },
     }
+
     return createRoute({
       ...routeConfig,
       ...(config.isPublic ? {} : { middleware: [this.privateMiddleware()] }),
       tags: [this.name],
-      responses: {
-        ...responses,
-        401: commonResponses[401],
-        500: commonResponses[500],
-      },
     })
   }
 
