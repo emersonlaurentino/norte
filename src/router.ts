@@ -84,14 +84,30 @@ export class Router<
   // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
   private parent: Router<any, string, any, any> | null = null
 
-  // Constructor overloads
+  /**
+   * Create a new Router instance
+   * @param domain - The domain name for root router (e.g., 'stores')
+   * @param config - The router configuration containing schema
+   */
   constructor(domain: TDomain, config: RouterConfig<TResponse>)
+  /**
+   * Create a new nested Router instance
+   * @param parent - The parent router instance
+   * @param domain - The domain name for nested router (e.g., 'products')
+   * @param config - The router configuration containing schema
+   */
   constructor(
     // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
     parent: Router<any, string, any, TCollectionParams>,
     domain: TDomain,
     config: RouterConfig<TResponse>,
   )
+  /**
+   * Create a new Router instance with overloaded constructor
+   * @param domainOrParent - Either the domain name (string) or parent router instance
+   * @param domainOrConfig - Either the domain name (if parent provided) or config object
+   * @param config - The router configuration (if parent provided)
+   */
   constructor(
     // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
     domainOrParent: TDomain | Router<any, string, any, TCollectionParams>,
@@ -200,7 +216,8 @@ export class Router<
   }
 
   /**
-   * @returns A middleware that checks if the user is authenticated
+   * Create a middleware that checks if the user is authenticated
+   * @returns A middleware function that validates authentication
    */
   private privateMiddleware() {
     return createMiddleware(async (c, next) => {
@@ -211,7 +228,8 @@ export class Router<
   }
 
   /**
-   * @returns The singular name of the domain, e.g. 'store' for 'stores'
+   * Get the singular name of the domain (e.g., 'store' for 'stores')
+   * @returns The singular name of the domain in lowercase
    */
   private getSingularName() {
     const lowercaseName = this.name.toLowerCase()
@@ -312,6 +330,11 @@ export class Router<
     }
   }
 
+  /**
+   * Get the operation configuration for a specific route operation
+   * @param operation The operation type (list, create, read, update, delete)
+   * @returns The operation configuration
+   */
   private getOperationConfig(
     operation: 'list' | 'create' | 'read' | 'update' | 'delete',
   ) {
@@ -355,6 +378,13 @@ export class Router<
     return configs[operation]
   }
 
+  /**
+   * Build the request object for route configuration
+   * @param includeId - Whether to include ID parameter in the request
+   * @param hasInput - Whether the route accepts input data
+   * @param config - Route configuration object
+   * @returns The request object or undefined if no parameters needed
+   */
   private buildRequestObject(
     includeId: boolean,
     hasInput: boolean,
@@ -378,6 +408,13 @@ export class Router<
     return Object.keys(request).length > 0 ? request : undefined
   }
 
+  /**
+   * Build the success response configuration for a route operation
+   * @param operation - The type of operation (list, create, read, update, delete)
+   * @param status - The HTTP status code for success response
+   * @param hasData - Whether the response includes data
+   * @returns The success response configuration object
+   */
   private buildSuccessResponse(
     operation: 'list' | 'create' | 'read' | 'update' | 'delete',
     status: number,
@@ -410,6 +447,13 @@ export class Router<
     }
   }
 
+  /**
+   * Build the error responses configuration for a route operation
+   * @param operation - The type of operation (list, create, read, update, delete)
+   * @param includeId - Whether the route includes an ID parameter
+   * @param hasCommonErrors - Whether to include common error responses
+   * @returns The error responses configuration object
+   */
   private buildErrorResponses(
     operation: 'list' | 'create' | 'read' | 'update' | 'delete',
     includeId: boolean,
@@ -431,6 +475,12 @@ export class Router<
     return responses
   }
 
+  /**
+   * Create route definition for OpenAPI specification
+   * @param operation - The type of operation (list, create, read, update, delete)
+   * @param config - Route configuration including input schema and public access settings
+   * @returns The complete route definition for Hono OpenAPI
+   */
   private createDefinition(
     operation: 'list' | 'create' | 'read' | 'update' | 'delete',
     config: RouteCommonConfig & { input?: ZodSchema },
@@ -486,13 +536,30 @@ export class Router<
     })
   }
 
+  /**
+   * Define a list endpoint that returns an array of resources
+   * @param handler - The handler function that returns an array of resources
+   * @returns The router instance for method chaining
+   */
   public list(
     handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
   ): this
+  /**
+   * Define a list endpoint with configuration options
+   * @param config - Route configuration options (e.g., isPublic)
+   * @param handler - The handler function that returns an array of resources
+   * @returns The router instance for method chaining
+   */
   public list(
     config: RouteCommonConfig,
     handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
   ): this
+  /**
+   * Define a list endpoint with overloaded parameters
+   * @param configOrHandler - Either configuration object or handler function
+   * @param handler - The handler function (if config was provided first)
+   * @returns The router instance for method chaining
+   */
   public list(
     configOrHandler:
       | RouteCommonConfig
@@ -534,6 +601,12 @@ export class Router<
     return this
   }
 
+  /**
+   * Define a create endpoint that accepts input data and creates a new resource
+   * @param config - Route configuration including input schema validation
+   * @param handler - The handler function that creates and returns the new resource
+   * @returns The router instance for method chaining
+   */
   public create<TInput extends ZodSchema>(
     config: RouteCommonConfig & { input: TInput },
     handler: InsertHandler<
@@ -578,6 +651,12 @@ export class Router<
     return this
   }
 
+  /**
+   * Define an update endpoint that accepts input data and updates an existing resource by ID
+   * @param config - Route configuration including input schema validation
+   * @param handler - The handler function that updates and returns the modified resource
+   * @returns The router instance for method chaining
+   */
   public update<TInput extends ZodSchema>(
     config: RouteCommonConfig & { input: TInput },
     handler: UpdateHandler<TInput, TResponse, TItemParams>,
@@ -618,11 +697,28 @@ export class Router<
     return this
   }
 
+  /**
+   * Define a read endpoint that retrieves a single resource by ID
+   * @param handler - The handler function that returns the requested resource
+   * @returns The router instance for method chaining
+   */
   public read(handler: ReadHandler<TResponse, TItemParams>): this
+  /**
+   * Define a read endpoint with configuration options
+   * @param config - Route configuration options (e.g., isPublic)
+   * @param handler - The handler function that returns the requested resource
+   * @returns The router instance for method chaining
+   */
   public read(
     config: RouteCommonConfig,
     handler: ReadHandler<TResponse, TItemParams>,
   ): this
+  /**
+   * Define a read endpoint with overloaded parameters
+   * @param configOrHandler - Either configuration object or handler function
+   * @param handler - The handler function (if config was provided first)
+   * @returns The router instance for method chaining
+   */
   public read(
     configOrHandler: RouteCommonConfig | ReadHandler<TResponse, TItemParams>,
     handler?: ReadHandler<TResponse, TItemParams>,
@@ -658,11 +754,28 @@ export class Router<
     return this
   }
 
+  /**
+   * Define a delete endpoint that removes a resource by ID
+   * @param handler - The handler function that deletes the resource
+   * @returns The router instance for method chaining
+   */
   public delete(handler: DeleteHandler<TItemParams>): this
+  /**
+   * Define a delete endpoint with configuration options
+   * @param config - Route configuration options (e.g., isPublic)
+   * @param handler - The handler function that deletes the resource
+   * @returns The router instance for method chaining
+   */
   public delete(
     config: RouteCommonConfig,
     handler: DeleteHandler<TItemParams>,
   ): this
+  /**
+   * Define a delete endpoint with overloaded parameters
+   * @param configOrHandler - Either configuration object or handler function
+   * @param handler - The handler function (if config was provided first)
+   * @returns The router instance for method chaining
+   */
   public delete(
     configOrHandler: RouteCommonConfig | DeleteHandler<TItemParams>,
     handler?: DeleteHandler<TItemParams>,
