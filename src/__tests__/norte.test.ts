@@ -46,7 +46,7 @@ vi.mock('../router', () => ({
     constructor(..._args: unknown[]) {
       // Mock router constructor with overloaded signature support
     }
-    static getRouterForRoute = vi.fn(() => ({}))
+    static getRouter = vi.fn(() => ({}))
   },
 }))
 

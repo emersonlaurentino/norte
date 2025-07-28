@@ -178,18 +178,25 @@ export class Router<
     )
   }
 
-  // Internal method - only accessible by Route class
-  private getRouter() {
+  /**
+   * Get the internal Hono router instance for this route
+   * @returns The internal Hono router instance for this route
+   */
+  private getInternalRouter() {
     return this.router
   }
 
-  // Friend access method for Route class
-  public static getRouterForRoute<
+  /**
+   * Get the Hono router instance for a specific route
+   * @param router - The router instance to get the Hono router for
+   * @returns The Hono router instance for the specified route
+   */
+  public static getRouter<
     TResponse extends ZodSchema,
     TDomain extends string,
     TCollectionParams extends Record<string, string>,
   >(router: Router<TResponse, TDomain, TCollectionParams>) {
-    return router.getRouter()
+    return router.getInternalRouter()
   }
 
   private privateMiddleware() {

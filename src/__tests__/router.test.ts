@@ -254,7 +254,7 @@ describe('Router', () => {
   describe('static methods', () => {
     it('should provide router access through static method', () => {
       const router = new Router('users', { schema: mockSchema })
-      const honoRouter = Router.getRouterForRoute(router)
+      const honoRouter = Router.getRouter(router)
 
       expect(honoRouter).toBeDefined()
     })

@@ -98,7 +98,7 @@ export class Norte {
   public register<TResponse extends z.ZodType, TDomain extends string = string>(
     router: Router<TResponse, TDomain>,
   ) {
-    return this.hono.route('/', Router.getRouterForRoute(router))
+    return this.hono.route('/', Router.getRouter(router))
   }
 
   public fetch = new Proxy((request: Request) => this.hono.fetch(request), {
