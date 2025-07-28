@@ -199,6 +199,9 @@ export class Router<
     return router.getInternalRouter()
   }
 
+  /**
+   * @returns A middleware that checks if the user is authenticated
+   */
   private privateMiddleware() {
     return createMiddleware(async (c, next) => {
       const session = c.get('session')
@@ -207,6 +210,9 @@ export class Router<
     })
   }
 
+  /**
+   * @returns The singular name of the domain, e.g. 'store' for 'stores'
+   */
   private getSingularName() {
     const lowercaseName = this.name.toLowerCase()
     if (lowercaseName.endsWith('s') && lowercaseName.length > 1) {
@@ -215,7 +221,12 @@ export class Router<
     return lowercaseName
   }
 
-  // Helper methods to reduce duplication
+  /**
+   * Resolve the handler arguments for a route
+   * @param configOrHandler The route configuration or handler function
+   * @param handler The handler function (if not included in configOrHandler)
+   * @returns The resolved configuration and handler function
+   */
   private resolveHandlerArgs<T>(
     configOrHandler: RouteCommonConfig | T,
     handler?: T,
@@ -229,6 +240,12 @@ export class Router<
     }
   }
 
+  /**
+   * Create a standardized error response
+   * @param c The Hono context
+   * @param error The NorteError instance
+   * @returns The error response
+   */
   private createErrorResponse(c: Context, error: NorteError) {
     return c.json(
       { error: error.code, message: error.message, details: error.details },
@@ -236,6 +253,12 @@ export class Router<
     )
   }
 
+  /**
+   * Create a standardized error response
+   * @param c The Hono context
+   * @param error The error to handle
+   * @returns The error response
+   */
   private handleError(c: Context, error: unknown) {
     if (error instanceof NorteError) return this.createErrorResponse(c, error)
     if (error instanceof Error) {
@@ -248,10 +271,11 @@ export class Router<
   }
 
   /**
-   * Safely validate data with the schema, providing better error handling
-   * for drizzle-zod schemas
+   * Validate the response data against the route schema
+   * @param data The data to validate against the schema
+   * @returns The validation result
    */
-  private validateSchema(
+  private validateResponseSchema(
     data: unknown,
   ):
     | { success: true; data: z.infer<TResponse> }
@@ -539,7 +563,7 @@ export class Router<
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
         }
-        const validatedData = this.validateSchema(result)
+        const validatedData = this.validateResponseSchema(result)
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -579,7 +603,7 @@ export class Router<
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
         }
-        const validatedData = this.validateSchema(result)
+        const validatedData = this.validateResponseSchema(result)
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -619,7 +643,7 @@ export class Router<
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
         }
-        const validatedData = this.validateSchema(result)
+        const validatedData = this.validateResponseSchema(result)
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
