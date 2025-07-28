@@ -149,36 +149,32 @@ export class Router<
   }
 
   /**
-   * Get all parameter names from parent chain
+   * Get all parameter names for the current route, including parent params
+   * and the current domain's ID if includeId is true
    */
-  private getParentParams(): string[] {
-    const params: string[] = []
-    let current = this.parent
-    while (current) {
-      params.unshift(current.createParamFromDomain())
-      current = current.parent
-    }
-    return params
+  private getParams(options: { includeId?: boolean } = {}): string[] {
+    const { includeId = false } = options
+    const path = this.createPath({ includeId })
+    return path
+      .split('/')
+      .filter((item) => item.startsWith(':'))
+      .map((item) => item.slice(1))
   }
 
   /**
-   * Get parameter schema based on whether the route includes the current domain ID
-   * @param includeCurrentId - Whether to include the current domain's ID parameter
+   * Get all parameter schemas for the current route, including parent params
+   * and the current domain's ID if includeId is true
    */
-  private getParameterSchema(includeCurrentId = false) {
-    const parentParams = this.getParentParams()
-    const allParams = includeCurrentId
-      ? [...parentParams, this.createParamFromDomain()]
-      : parentParams
-
-    if (allParams.length === 0) {
-      return undefined
-    }
-
+  private getParamsSchema(
+    options: { includeId?: boolean } = {},
+  ): z.ZodObject<Record<string, z.ZodString>> | undefined {
+    const params = this.getParams(options)
+    if (params.length === 0) return undefined
     return z.object(
-      Object.fromEntries(
-        allParams.map((param) => [param, z.string()]),
-      ) as Record<(typeof allParams)[number], z.ZodString>,
+      Object.fromEntries(params.map((param) => [param, z.string()])) as Record<
+        (typeof params)[number],
+        z.ZodString
+      >,
     )
   }
 
@@ -337,7 +333,7 @@ export class Router<
     const request: any = {}
 
     // Always include parameters if there are any (parent params or current id)
-    const paramSchema = this.getParameterSchema(includeId)
+    const paramSchema = this.getParamsSchema({ includeId })
     if (paramSchema) {
       request.params = paramSchema
     }
