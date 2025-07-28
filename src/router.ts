@@ -82,30 +82,21 @@ export class Router<
   private path: string
   private schema: TResponse
   private router: OpenAPIHono
-  private parent: Router<
-    ZodSchema,
-    string,
-    Record<string, string>,
-    Record<string, string>
-  > | null = null
+  // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
+  private parent: Router<any, string, any, any> | null = null
 
   // Constructor overloads
   constructor(domain: TDomain, config: RouterConfig<TResponse>)
   constructor(
-    parent: Router<
-      ZodSchema,
-      string,
-      Record<string, string>,
-      TCollectionParams
-    >,
+    // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
+    parent: Router<any, string, any, TCollectionParams>,
     domain: TDomain,
     config: RouterConfig<TResponse>,
   )
   constructor(
-    domainOrParent:
-      | TDomain
-      | Router<ZodSchema, string, Record<string, string>, TCollectionParams>,
-    domainOrConfig: string | RouterConfig<TResponse>,
+    // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
+    domainOrParent: TDomain | Router<any, string, any, TCollectionParams>,
+    domainOrConfig?: string | RouterConfig<TResponse>,
     config?: RouterConfig<TResponse>,
   ) {
     if (typeof domainOrParent === 'string') {
@@ -114,7 +105,8 @@ export class Router<
       this.schema = (domainOrConfig as RouterConfig<TResponse>).schema
     } else {
       // Nested router: new Router(parent, 'products', config)
-      this.parent = domainOrParent
+      // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
+      this.parent = domainOrParent as any
       this.domain = domainOrConfig as TDomain
       this.schema = config?.schema as TResponse
     }
@@ -211,9 +203,11 @@ export class Router<
   }
 
   // Friend access method for Route class
-  public static getRouterForRoute<TResponse extends ZodSchema>(
-    router: Router<TResponse, string>,
-  ) {
+  public static getRouterForRoute<
+    TResponse extends ZodSchema,
+    TDomain extends string,
+    TCollectionParams extends Record<string, string>,
+  >(router: Router<TResponse, TDomain, TCollectionParams>) {
     return router.getRouter()
   }
 
@@ -454,16 +448,21 @@ export class Router<
     })
   }
 
-  public list(handler: ListHandler<TResponse, TCollectionParams>): this
+  public list(
+    handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
+  ): this
   public list(
     config: RouteCommonConfig,
-    handler: ListHandler<TResponse, TCollectionParams>,
+    handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
   ): this
   public list(
     configOrHandler:
       | RouteCommonConfig
-      | ListHandler<TResponse, TCollectionParams>,
-    handler?: ListHandler<TResponse, TCollectionParams>,
+      | ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
+    handler?: ListHandler<
+      TResponse,
+      TCollectionParams & DomainToParam<TDomain>
+    >,
   ): this {
     const { config, actualHandler } = this.resolveHandlerArgs(
       configOrHandler,
@@ -476,7 +475,8 @@ export class Router<
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
-          param: c.req.valid('param') as TCollectionParams,
+          param: c.req.valid('param') as TCollectionParams &
+            DomainToParam<TDomain>,
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
@@ -498,7 +498,11 @@ export class Router<
 
   public create<TInput extends ZodSchema>(
     config: RouteCommonConfig & { input: TInput },
-    handler: InsertHandler<TInput, TResponse, TCollectionParams>,
+    handler: InsertHandler<
+      TInput,
+      TResponse,
+      TCollectionParams & DomainToParam<TDomain>
+    >,
   ) {
     const definition = this.createDefinition('create', config)
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
@@ -556,7 +560,7 @@ export class Router<
           session: c.get('session'),
           user: c.get('user'),
           input: validatedInput.data,
-          param: c.req.valid('param'),
+          param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
@@ -596,7 +600,7 @@ export class Router<
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
-          param: c.req.valid('param'),
+          param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
@@ -636,7 +640,7 @@ export class Router<
         const result = await actualHandler({
           session: c.get('session'),
           user: c.get('user'),
-          param: c.req.valid('param'),
+          param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse(c, result)
