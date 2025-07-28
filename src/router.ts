@@ -456,11 +456,12 @@ export class Router<
    * @param hasCommonErrors - Whether to include common error responses
    * @returns The error responses configuration object
    */
-  private buildErrorResponses(
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
-    includeId: boolean,
-    hasCommonErrors: boolean,
-  ) {
+  private buildErrorResponses(options: {
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
+    includeId: boolean
+    hasCommonErrors: boolean
+  }) {
+    const { operation, includeId, hasCommonErrors } = options
     // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
     const responses: any = {}
 
@@ -503,11 +504,11 @@ export class Router<
       status: opConfig.status,
       hasData: opConfig.hasData,
     })
-    const errorResponses = this.buildErrorResponses(
+    const errorResponses = this.buildErrorResponses({
       operation,
-      opConfig.includeId,
-      opConfig.hasCommonErrors,
-    )
+      includeId: opConfig.includeId,
+      hasCommonErrors: opConfig.hasCommonErrors,
+    })
 
     const summaries = {
       list: `Get all ${this.name.toLowerCase()}`,
