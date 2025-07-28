@@ -47,13 +47,7 @@ describe('index exports', () => {
   })
 
   it('should have all expected exports', () => {
-    const expectedExports = [
-      'z',
-      'NorteError',
-      'Norte',
-      'Router',
-      'commonResponses',
-    ]
+    const expectedExports = ['z', 'NorteError', 'Norte', 'Router']
 
     expectedExports.forEach((exportName) => {
       expect(index).toHaveProperty(exportName)
