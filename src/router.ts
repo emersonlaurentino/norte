@@ -137,7 +137,8 @@ export class Router<
    * stores/products -> /stores/:storeId/products
    * stores/products/variants -> /stores/:storeId/products/:productId/variants
    */
-  private createPath(includeId = false): string {
+  private createPath(options: { includeId?: boolean } = {}): string {
+    const { includeId = false } = options
     const domainPath = `/${this.domain}${includeId ? `/:${this.createParamFromDomain()}` : ''}`
     if (this.parent) {
       const parentPath = this.parent.createPath()
@@ -440,7 +441,7 @@ export class Router<
     const routeConfig: RouteConfig = {
       // biome-ignore lint/suspicious/noExplicitAny: Required for Hono method type compatibility
       method: opConfig.method as any,
-      path: this.createPath(opConfig.includeId),
+      path: this.createPath({ includeId: opConfig.includeId }),
       summary: summaries[operation],
       request,
       responses: {
