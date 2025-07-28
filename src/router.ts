@@ -416,11 +416,12 @@ export class Router<
    * @param hasData - Whether the response includes data
    * @returns The success response configuration object
    */
-  private buildSuccessResponse(
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete',
-    status: number,
-    hasData: boolean,
-  ) {
+  private buildSuccessResponse(options: {
+    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
+    status: number
+    hasData: boolean
+  }) {
+    const { operation, status, hasData } = options
     const descriptions: Record<typeof operation, string> = {
       list: `List of ${this.name.toLowerCase()}`,
       read: `${this.getSingularName()} details`,
@@ -497,11 +498,11 @@ export class Router<
       hasInput,
       config,
     })
-    const successResponse = this.buildSuccessResponse(
+    const successResponse = this.buildSuccessResponse({
       operation,
-      opConfig.status,
-      opConfig.hasData,
-    )
+      status: opConfig.status,
+      hasData: opConfig.hasData,
+    })
     const errorResponses = this.buildErrorResponses(
       operation,
       opConfig.includeId,
