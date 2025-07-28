@@ -121,7 +121,7 @@ export class Router<
    * 'products' -> 'productId'
    * 'categories' -> 'categoryId'
    */
-  private getDomainParam(): string {
+  private createParamFromDomain(): string {
     // Handle plural to singular conversion
     const singular = this.domain.endsWith('ies')
       ? `${this.domain.slice(0, -3)}y` // categories -> category
@@ -138,10 +138,10 @@ export class Router<
    * stores/products/variants -> /stores/:storeId/products/:productId/variants
    */
   private createPath(includeId = false): string {
-    const domainPath = `/${this.domain}${includeId ? `/:${this.getDomainParam()}` : ''}`
+    const domainPath = `/${this.domain}${includeId ? `/:${this.createParamFromDomain()}` : ''}`
     if (this.parent) {
       const parentPath = this.parent.createPath()
-      const parentParam = this.parent.getDomainParam()
+      const parentParam = this.parent.createParamFromDomain()
       return `${parentPath}/:${parentParam}${domainPath}`
     }
     return domainPath
@@ -154,7 +154,7 @@ export class Router<
     const params: string[] = []
     let current = this.parent
     while (current) {
-      params.unshift(current.getDomainParam())
+      params.unshift(current.createParamFromDomain())
       current = current.parent
     }
     return params
@@ -167,7 +167,7 @@ export class Router<
   private getParameterSchema(includeCurrentId = false) {
     const parentParams = this.getParentParams()
     const allParams = includeCurrentId
-      ? [...parentParams, this.getDomainParam()]
+      ? [...parentParams, this.createParamFromDomain()]
       : parentParams
 
     if (allParams.length === 0) {
