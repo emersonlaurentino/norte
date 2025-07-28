@@ -241,63 +241,71 @@ export class Router<
 
   /**
    * Resolve the handler arguments for a route
-   * @param configOrHandler The route configuration or handler function
-   * @param handler The handler function (if not included in configOrHandler)
+   * @param options The options object containing configOrHandler and optional handler
    * @returns The resolved configuration and handler function
    */
-  private resolveHandlerArgs<T>(
-    configOrHandler: RouteCommonConfig | T,
-    handler?: T,
-  ): { config: RouteCommonConfig; actualHandler: T } {
+  private resolveHandlerArgs<T>(options: {
+    configOrHandler: RouteCommonConfig | T
+    handler?: T
+  }): { config: RouteCommonConfig; actualHandler: NonNullable<T> } {
+    const { configOrHandler, handler } = options
     if (typeof configOrHandler === 'function') {
-      return { config: {}, actualHandler: configOrHandler as T }
+      return { config: {}, actualHandler: configOrHandler as NonNullable<T> }
+    }
+    if (!handler) {
+      throw new Error('Handler is required when config is provided')
     }
     return {
       config: configOrHandler as RouteCommonConfig,
-      actualHandler: handler as T,
+      actualHandler: handler as NonNullable<T>,
     }
   }
 
   /**
    * Create a standardized error response
-   * @param c The Hono context
-   * @param error The NorteError instance
+   * @param options The options object containing context and error
    * @returns The error response
    */
-  private createErrorResponse(c: Context, error: NorteError) {
-    return c.json(
+  private createErrorResponse(options: {
+    context: Context
+    error: NorteError
+  }) {
+    const { context, error } = options
+    return context.json(
       { error: error.code, message: error.message, details: error.details },
       error.statusCode,
     )
   }
 
   /**
-   * Create a standardized error response
-   * @param c The Hono context
-   * @param error The error to handle
+   * Handle errors in a standardized way
+   * @param options The options object containing context and error
    * @returns The error response
    */
-  private handleError(c: Context, error: unknown) {
-    if (error instanceof NorteError) return this.createErrorResponse(c, error)
+  private handleError(options: { context: Context; error: unknown }) {
+    const { context, error } = options
+    if (error instanceof NorteError)
+      return this.createErrorResponse({ context, error })
     if (error instanceof Error) {
-      return c.json(
+      return context.json(
         { error: 'INTERNAL_SERVER_ERROR', details: error.message },
         500,
       )
     }
-    return c.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
+    return context.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
   }
 
   /**
    * Validate the response data against the route schema
-   * @param data The data to validate against the schema
+   * @param options The options object containing data to validate
    * @returns The validation result
    */
-  private validateResponseSchema(
-    data: unknown,
-  ):
+  private validateResponseSchema(options: {
+    data: unknown
+  }):
     | { success: true; data: z.infer<TResponse> }
     | { success: false; error: z.ZodError } {
+    const { data } = options
     try {
       // First try to parse with the schema
       const result = this.schema.safeParse(data)
@@ -574,10 +582,10 @@ export class Router<
       TCollectionParams & DomainToParam<TDomain>
     >,
   ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs(
+    const { config, actualHandler } = this.resolveHandlerArgs({
       configOrHandler,
       handler,
-    )
+    })
     const definition = this.createDefinition({ operation: 'list', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
@@ -589,7 +597,7 @@ export class Router<
             DomainToParam<TDomain>,
         })
         if (result instanceof NorteError) {
-          return this.createErrorResponse(c, result)
+          return this.createErrorResponse({ context: c, error: result })
         }
         const validatedData = z.array(this.schema).safeParse(result)
         if (!validatedData.success) {
@@ -600,7 +608,7 @@ export class Router<
         }
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        return this.handleError(c, error)
+        return this.handleError({ context: c, error })
       }
     })
     return this
@@ -639,9 +647,9 @@ export class Router<
           param: c.req.valid('param'),
         })
         if (result instanceof NorteError) {
-          return this.createErrorResponse(c, result)
+          return this.createErrorResponse({ context: c, error: result })
         }
-        const validatedData = this.validateResponseSchema(result)
+        const validatedData = this.validateResponseSchema({ data: result })
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -650,7 +658,7 @@ export class Router<
         }
         return c.json({ data: validatedData.data }, 201)
       } catch (error) {
-        return this.handleError(c, error)
+        return this.handleError({ context: c, error })
       }
     })
     return this
@@ -685,9 +693,9 @@ export class Router<
           param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
-          return this.createErrorResponse(c, result)
+          return this.createErrorResponse({ context: c, error: result })
         }
-        const validatedData = this.validateResponseSchema(result)
+        const validatedData = this.validateResponseSchema({ data: result })
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -696,7 +704,7 @@ export class Router<
         }
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        return this.handleError(c, error)
+        return this.handleError({ context: c, error })
       }
     })
     return this
@@ -728,10 +736,10 @@ export class Router<
     configOrHandler: RouteCommonConfig | ReadHandler<TResponse, TItemParams>,
     handler?: ReadHandler<TResponse, TItemParams>,
   ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs(
+    const { config, actualHandler } = this.resolveHandlerArgs({
       configOrHandler,
       handler,
-    )
+    })
     const definition = this.createDefinition({ operation: 'read', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
@@ -742,9 +750,9 @@ export class Router<
           param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
-          return this.createErrorResponse(c, result)
+          return this.createErrorResponse({ context: c, error: result })
         }
-        const validatedData = this.validateResponseSchema(result)
+        const validatedData = this.validateResponseSchema({ data: result })
         if (!validatedData.success) {
           return c.json(
             { error: 'INVALID_DATA', details: validatedData.error },
@@ -753,7 +761,7 @@ export class Router<
         }
         return c.json({ data: validatedData.data }, 200)
       } catch (error) {
-        return this.handleError(c, error)
+        return this.handleError({ context: c, error })
       }
     })
     return this
@@ -785,10 +793,10 @@ export class Router<
     configOrHandler: RouteCommonConfig | DeleteHandler<TItemParams>,
     handler?: DeleteHandler<TItemParams>,
   ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs(
+    const { config, actualHandler } = this.resolveHandlerArgs({
       configOrHandler,
       handler,
-    )
+    })
     const definition = this.createDefinition({ operation: 'delete', config })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
@@ -799,11 +807,11 @@ export class Router<
           param: c.req.valid('param') as TItemParams,
         })
         if (result instanceof NorteError) {
-          return this.createErrorResponse(c, result)
+          return this.createErrorResponse({ context: c, error: result })
         }
         return c.body(null, 204)
       } catch (error) {
-        return this.handleError(c, error)
+        return this.handleError({ context: c, error })
       }
     })
     return this
