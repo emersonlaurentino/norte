@@ -28,14 +28,21 @@ export class Norte {
     { url: '/docs', title: 'Api' },
   ]
   private hono: OpenAPIHono
+  private isInitialized = false
 
   constructor(config: NorteConfig) {
     this.config = config
     this.hono = new OpenAPIHono()
     this.setupMiddlewares()
-    this.setupAuth(config.authConfig)
-    this.setupDocs()
-    this.setupHealthcheck()
+  }
+
+  private ensureInitialized() {
+    if (!this.isInitialized) {
+      this.setupAuth(this.config.authConfig)
+      this.setupDocs()
+      this.setupHealthcheck()
+      this.isInitialized = true
+    }
   }
 
   private setupHealthcheck() {
@@ -101,10 +108,17 @@ export class Norte {
     return this.hono.route('/', Router.getRouter(router))
   }
 
-  public fetch = new Proxy((request: Request) => this.hono.fetch(request), {
-    get: (target, prop) => {
-      if (prop === 'fetch') return target
-      return this.hono[prop as keyof typeof this.hono]
+  public fetch = new Proxy(
+    (request: Request) => {
+      this.ensureInitialized()
+      return this.hono.fetch(request)
     },
-  })
+    {
+      get: (target, prop) => {
+        if (prop === 'fetch') return target
+        this.ensureInitialized()
+        return this.hono[prop as keyof typeof this.hono]
+      },
+    },
+  )
 }
