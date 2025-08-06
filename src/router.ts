@@ -30,7 +30,7 @@ interface RouteCommonConfig {
 }
 
 type NorteRequest = {
-  headers: Record<string, string>
+  headers: Headers
 }
 
 type HandlerContext<
