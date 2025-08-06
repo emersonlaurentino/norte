@@ -29,12 +29,17 @@ interface RouteCommonConfig {
   isPublic?: boolean
 }
 
+type NorteRequest = {
+  headers: Record<string, string>
+}
+
 type HandlerContext<
   TParams extends Record<string, string> = Record<string, never>,
 > = {
   session: Session | null
   user: User | null
   param: TParams
+  request: NorteRequest
 }
 
 // Simplified handler types
@@ -595,6 +600,7 @@ export class Router<
           user: c.get('user'),
           param: c.req.valid('param') as TCollectionParams &
             DomainToParam<TDomain>,
+          request: { headers: c.req.raw.headers },
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse({ context: c, error: result })
@@ -645,6 +651,7 @@ export class Router<
           user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param'),
+          request: { headers: c.req.raw.headers },
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse({ context: c, error: result })
@@ -691,6 +698,7 @@ export class Router<
           user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param') as TItemParams,
+          request: { headers: c.req.raw.headers },
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse({ context: c, error: result })
@@ -748,6 +756,7 @@ export class Router<
           session: c.get('session'),
           user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
+          request: { headers: c.req.raw.headers },
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse({ context: c, error: result })
@@ -805,6 +814,7 @@ export class Router<
           session: c.get('session'),
           user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
+          request: { headers: c.req.raw.headers },
         })
         if (result instanceof NorteError) {
           return this.createErrorResponse({ context: c, error: result })

@@ -233,32 +233,46 @@ Each method is chainable and generates the appropriate OpenAPI route:
 #### Handler Types
 
 ```typescript
-type ListHandler<TResponse> = (context: HandlerContext & { 
-  param: Record<string, string> 
-}) => Promise<z.infer<TResponse>[] | NorteError> | z.infer<TResponse>[] | NorteError
+type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
 
-type InsertHandler<TInput, TResponse> = (context: HandlerContext & {
-  input: z.infer<TInput>
-  param: Record<string, string>
-}) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
-
-type ReadHandler<TResponse> = (context: HandlerContext & {
-  param: Record<string, string>
-}) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
-
-type UpdateHandler<TInput, TResponse> = (context: HandlerContext & {
-  input: z.infer<TInput>
-  param: Record<string, string>
-}) => Promise<z.infer<TResponse> | NorteError> | z.infer<TResponse> | NorteError
-
-type DeleteHandler = (context: HandlerContext & {
-  param: Record<string, string>
-}) => Promise<undefined | NorteError> | undefined | NorteError
-
-interface HandlerContext {
+type HandlerContext<
+  TParams extends Record<string, string> = Record<string, never>,
+> = {
   session: Session | null
   user: User | null
+  param: TParams
+  request: NorteRequest
 }
+
+type ListHandler<
+  TResponse extends ZodSchema,
+  TParams extends Record<string, string>,
+> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>[]>
+
+type InsertHandler<
+  TInput extends ZodSchema,
+  TResponse extends ZodSchema,
+  TParams extends Record<string, string>,
+> = (
+  c: HandlerContext<TParams> & { input: z.infer<TInput> },
+) => HandlerResult<z.infer<TResponse>>
+
+type ReadHandler<
+  TResponse extends ZodSchema,
+  TParams extends Record<string, string>,
+> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>>
+
+type UpdateHandler<
+  TInput extends ZodSchema,
+  TResponse extends ZodSchema,
+  TParams extends Record<string, string>,
+> = (
+  c: HandlerContext<TParams> & { input: z.infer<TInput> },
+) => HandlerResult<z.infer<TResponse>>
+
+type DeleteHandler<TParams extends Record<string, string>> = (
+  c: HandlerContext<TParams>,
+) => HandlerResult<undefined>
 ```
 
 #### Configuration Options
