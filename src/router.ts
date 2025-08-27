@@ -520,7 +520,6 @@ export class Router<
       responses: {
         ...successResponse,
         ...errorResponses,
-        401: commonResponses[401],
         500: commonResponses[500],
       },
     }
