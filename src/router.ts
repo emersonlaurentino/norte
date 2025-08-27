@@ -1,10 +1,24 @@
 import { createRoute, OpenAPIHono, type RouteConfig } from '@hono/zod-openapi'
-import type { Session, User } from 'better-auth'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
 import { NorteError } from './error'
 import { commonResponses } from './utils'
+
+// Define simple auth types to replace better-auth types
+interface User {
+  id: string
+  email?: string
+  name?: string
+  [key: string]: unknown
+}
+
+interface Session {
+  id: string
+  userId: string
+  expiresAt: Date
+  [key: string]: unknown
+}
 
 // Converts 'stores' -> 'store' | 'categories' -> 'category'
 type Singular<T extends string> = T extends `${infer P}ies`

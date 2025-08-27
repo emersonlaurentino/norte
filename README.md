@@ -18,13 +18,13 @@ A modern, type-safe API framework that simplifies building production-ready REST
 ### Installation
 
 ```bash
-bun add norte better-auth
+bun add norte
 # or
-npm install norte better-auth
+npm install norte
 # or
-yarn add norte better-auth
+yarn add norte
 # or
-pnpm add norte better-auth
+pnpm add norte
 ```
 
 ### Basic Usage
@@ -107,7 +107,7 @@ The main application class that handles setup and configuration.
 const app = new Norte({
   title: string,              // API title for documentation
   version?: string,           // API version (default: "1.0.0")
-  authConfig: BetterAuthOptions  // Better Auth configuration
+  authConfig?: AuthConfig     // Optional auth configuration
 })
 ```
 
@@ -642,7 +642,6 @@ MIT © Emerson Laurentino
 
 ## 🔗 Links
 
-- [Better Auth](https://better-auth.com)
 - [Hono](https://hono.dev)
 - [Zod](https://zod.dev)
 - [Scalar](https://scalar.com)

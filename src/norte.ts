@@ -1,13 +1,26 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import type { BetterAuthOptions, Session, User } from 'better-auth'
-import { betterAuth } from 'better-auth'
 import type { MiddlewareHandler } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import type { z } from 'zod'
 import { Router } from './router'
+
+// Define simple auth types to replace better-auth types
+interface User {
+  id: string
+  email?: string
+  name?: string
+  [key: string]: unknown
+}
+
+interface Session {
+  id: string
+  userId: string
+  expiresAt: Date
+  [key: string]: unknown
+}
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -16,10 +29,17 @@ declare module 'hono' {
   }
 }
 
+// Simple auth configuration interface to replace BetterAuthOptions
+interface AuthConfig {
+  // Basic auth configuration options
+  sessionExpiry?: number
+  [key: string]: unknown
+}
+
 interface NorteConfig {
   title: string
   version?: string
-  authConfig: BetterAuthOptions
+  authConfig?: AuthConfig
 }
 
 export class Norte {
@@ -38,7 +58,9 @@ export class Norte {
 
   private ensureInitialized() {
     if (!this.isInitialized) {
-      this.setupAuth(this.config.authConfig)
+      if (this.config.authConfig) {
+        this.setupAuth(this.config.authConfig)
+      }
       this.setupDocs()
       this.setupHealthcheck()
       this.isInitialized = true
@@ -58,34 +80,18 @@ export class Norte {
     this.middleware(prettyJSON())
   }
 
-  private setupAuth(authConfig: BetterAuthOptions) {
-    const auth = betterAuth(authConfig)
-    this.hono.use('*', this.authMiddleware(auth))
-    this.scalarSources.push({
-      url: '/auth/open-api/generate-schema',
-      title: 'Auth',
-    })
-    this.hono.on(['POST', 'GET'], '/auth/**', (c) => auth.handler(c.req.raw))
-    this.hono.get(
-      '/',
-      Scalar({
-        pageTitle: this.config.title,
-        sources: this.scalarSources,
-      }),
-    )
+  private setupAuth(_authConfig: AuthConfig) {
+    // Simple auth middleware setup - users need to implement their own auth logic
+    this.hono.use('*', this.authMiddleware())
+    // Remove the auth endpoints and scalar sources since we're no longer using better-auth
   }
 
-  private authMiddleware(auth: ReturnType<typeof betterAuth>) {
+  private authMiddleware() {
     return createMiddleware(async (c, next) => {
-      const headers = c.req.raw.headers
-      const session = await auth.api.getSession({ headers })
-      if (!session) {
-        c.set('user', null)
-        c.set('session', null)
-        return next()
-      }
-      c.set('user', session.user)
-      c.set('session', session.session)
+      // Default implementation - sets no user/session
+      // Users should override this with their own auth logic
+      c.set('user', null)
+      c.set('session', null)
       return next()
     })
   }
@@ -100,6 +106,15 @@ export class Norte {
     }
     this.hono.doc31('/docs', openApi)
     this.hono.getOpenAPI31Document(openApi)
+
+    // Setup Scalar API documentation
+    this.hono.get(
+      '/',
+      Scalar({
+        pageTitle: this.config.title,
+        sources: this.scalarSources,
+      }),
+    )
   }
 
   public register<TResponse extends z.ZodType, TDomain extends string = string>(

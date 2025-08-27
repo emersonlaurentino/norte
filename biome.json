@@ -1,11 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
   "files": {
-    "includes": [
-      "**",
-      "!**/node_modules/**",
-      "!**/dist/**"
-    ]
+    "includes": ["**", "!**/node_modules/**", "!**/dist/**"]
   },
   "linter": {
     "enabled": true,
