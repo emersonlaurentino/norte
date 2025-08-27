@@ -1,45 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import type { MiddlewareHandler } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import type { z } from 'zod'
 import { Router } from './router'
 
-// Define simple auth types to replace better-auth types
-interface User {
-  id: string
-  email?: string
-  name?: string
-  [key: string]: unknown
-}
-
-interface Session {
-  id: string
-  userId: string
-  expiresAt: Date
-  [key: string]: unknown
-}
-
-declare module 'hono' {
-  interface ContextVariableMap {
-    session: Session | null
-    user: User | null
-  }
-}
-
-// Simple auth configuration interface to replace BetterAuthOptions
-interface AuthConfig {
-  // Basic auth configuration options
-  sessionExpiry?: number
-  [key: string]: unknown
-}
-
 interface NorteConfig {
   title: string
   version?: string
-  authConfig?: AuthConfig
 }
 
 export class Norte {
@@ -58,9 +27,6 @@ export class Norte {
 
   private ensureInitialized() {
     if (!this.isInitialized) {
-      if (this.config.authConfig) {
-        this.setupAuth(this.config.authConfig)
-      }
       this.setupDocs()
       this.setupHealthcheck()
       this.isInitialized = true
@@ -78,22 +44,6 @@ export class Norte {
   private setupMiddlewares() {
     this.middleware(logger())
     this.middleware(prettyJSON())
-  }
-
-  private setupAuth(_authConfig: AuthConfig) {
-    // Simple auth middleware setup - users need to implement their own auth logic
-    this.hono.use('*', this.authMiddleware())
-    // Remove the auth endpoints and scalar sources since we're no longer using better-auth
-  }
-
-  private authMiddleware() {
-    return createMiddleware(async (c, next) => {
-      // Default implementation - sets no user/session
-      // Users should override this with their own auth logic
-      c.set('user', null)
-      c.set('session', null)
-      return next()
-    })
   }
 
   private setupDocs() {

@@ -1,24 +1,8 @@
 import { createRoute, OpenAPIHono, type RouteConfig } from '@hono/zod-openapi'
 import type { Context } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
 import { NorteError } from './error'
 import { commonResponses } from './utils'
-
-// Define simple auth types to replace better-auth types
-interface User {
-  id: string
-  email?: string
-  name?: string
-  [key: string]: unknown
-}
-
-interface Session {
-  id: string
-  userId: string
-  expiresAt: Date
-  [key: string]: unknown
-}
 
 // Converts 'stores' -> 'store' | 'categories' -> 'category'
 type Singular<T extends string> = T extends `${infer P}ies`
@@ -39,10 +23,6 @@ interface RouterConfig<TResponse extends ZodSchema> {
   schema: TResponse
 }
 
-interface RouteCommonConfig {
-  isPublic?: boolean
-}
-
 type NorteRequest = {
   headers: Headers
 }
@@ -50,8 +30,6 @@ type NorteRequest = {
 type HandlerContext<
   TParams extends Record<string, string> = Record<string, never>,
 > = {
-  session: Session | null
-  user: User | null
   param: TParams
   request: NorteRequest
 }
@@ -235,18 +213,6 @@ export class Router<
   }
 
   /**
-   * Create a middleware that checks if the user is authenticated
-   * @returns A middleware function that validates authentication
-   */
-  private privateMiddleware() {
-    return createMiddleware(async (c, next) => {
-      const session = c.get('session')
-      if (!session) return c.json({ error: 'UNAUTHORIZED' }, 401)
-      return next()
-    })
-  }
-
-  /**
    * Get the singular name of the domain (e.g., 'store' for 'stores')
    * @returns The singular name of the domain in lowercase
    */
@@ -264,20 +230,11 @@ export class Router<
    * @returns The resolved configuration and handler function
    */
   private resolveHandlerArgs<T>(options: {
-    configOrHandler: RouteCommonConfig | T
-    handler?: T
-  }): { config: RouteCommonConfig; actualHandler: NonNullable<T> } {
-    const { configOrHandler, handler } = options
-    if (typeof configOrHandler === 'function') {
-      return { config: {}, actualHandler: configOrHandler as NonNullable<T> }
-    }
-    if (!handler) {
-      throw new Error('Handler is required when config is provided')
-    }
-    return {
-      config: configOrHandler as RouteCommonConfig,
-      actualHandler: handler as NonNullable<T>,
-    }
+    configOrHandler: T
+    handler?: never
+  }): { actualHandler: NonNullable<T> } {
+    const { configOrHandler } = options
+    return { actualHandler: configOrHandler as NonNullable<T> }
   }
 
   /**
@@ -410,15 +367,15 @@ export class Router<
    * Build the request object for route configuration
    * @param includeId - Whether to include ID parameter in the request
    * @param hasInput - Whether the route accepts input data
-   * @param config - Route configuration object
+   * @param inputSchema - Input schema for the route
    * @returns The request object or undefined if no parameters needed
    */
   private buildRequestObject(options: {
     includeId: boolean
     hasInput: boolean
-    config: RouteCommonConfig & { input?: ZodSchema }
+    inputSchema?: ZodSchema
   }) {
-    const { includeId, hasInput, config } = options
+    const { includeId, hasInput, inputSchema } = options
     // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
     const request: any = {}
 
@@ -428,9 +385,9 @@ export class Router<
       request.params = paramSchema
     }
 
-    if (hasInput && config.input) {
+    if (hasInput && inputSchema) {
       request.body = {
-        content: { 'application/json': { schema: config.input } },
+        content: { 'application/json': { schema: inputSchema } },
       }
     }
 
@@ -509,25 +466,32 @@ export class Router<
   /**
    * Create route definition for OpenAPI specification
    * @param operation - The type of operation (list, create, read, update, delete)
-   * @param config - Route configuration including input schema and public access settings
+   * @param inputSchema - Optional input schema for create/update operations
    * @returns The complete route definition for Hono OpenAPI
    */
   private createDefinition(options: {
     operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-    config: RouteCommonConfig & { input?: ZodSchema }
+    inputSchema?: ZodSchema
   }) {
-    const { operation, config } = options
+    const { operation, inputSchema } = options
     const opConfig = this.getOperationConfig({ operation })
     const hasInput = Boolean(
-      config.input &&
+      inputSchema &&
         (opConfig.method === 'post' || opConfig.method === 'patch'),
     )
 
-    const request = this.buildRequestObject({
+    const requestArgs: {
+      includeId: boolean
+      hasInput: boolean
+      inputSchema?: ZodSchema
+    } = {
       includeId: opConfig.includeId,
       hasInput,
-      config,
-    })
+    }
+    if (hasInput && inputSchema) {
+      requestArgs.inputSchema = inputSchema
+    }
+    const request = this.buildRequestObject(requestArgs)
     const successResponse = this.buildSuccessResponse({
       operation,
       status: opConfig.status,
@@ -563,7 +527,6 @@ export class Router<
 
     return createRoute({
       ...routeConfig,
-      ...(config.isPublic ? {} : { middleware: [this.privateMiddleware()] }),
       tags: [this.name],
     })
   }
@@ -575,43 +538,15 @@ export class Router<
    */
   public list(
     handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-  ): this
-  /**
-   * Define a list endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
-   * @param handler - The handler function that returns an array of resources
-   * @returns The router instance for method chaining
-   */
-  public list(
-    config: RouteCommonConfig,
-    handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-  ): this
-  /**
-   * Define a list endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public list(
-    configOrHandler:
-      | RouteCommonConfig
-      | ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-    handler?: ListHandler<
-      TResponse,
-      TCollectionParams & DomainToParam<TDomain>
-    >,
   ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
+    const { actualHandler } = this.resolveHandlerArgs({
+      configOrHandler: handler,
     })
-    const definition = this.createDefinition({ operation: 'list', config })
+    const definition = this.createDefinition({ operation: 'list' })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TCollectionParams &
             DomainToParam<TDomain>,
           request: { headers: c.req.raw.headers },
@@ -641,14 +576,17 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public create<TInput extends ZodSchema>(
-    config: RouteCommonConfig & { input: TInput },
+    config: { input: TInput },
     handler: InsertHandler<
       TInput,
       TResponse,
       TCollectionParams & DomainToParam<TDomain>
     >,
   ) {
-    const definition = this.createDefinition({ operation: 'create', config })
+    const definition = this.createDefinition({
+      operation: 'create',
+      inputSchema: config.input,
+    })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -661,8 +599,6 @@ export class Router<
           )
         }
         const result = await handler({
-          session: c.get('session'),
-          user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param'),
           request: { headers: c.req.raw.headers },
@@ -692,10 +628,13 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public update<TInput extends ZodSchema>(
-    config: RouteCommonConfig & { input: TInput },
+    config: { input: TInput },
     handler: UpdateHandler<TInput, TResponse, TItemParams>,
   ) {
-    const definition = this.createDefinition({ operation: 'update', config })
+    const definition = this.createDefinition({
+      operation: 'update',
+      inputSchema: config.input,
+    })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
@@ -708,8 +647,6 @@ export class Router<
           )
         }
         const result = await handler({
-          session: c.get('session'),
-          user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
@@ -737,38 +674,15 @@ export class Router<
    * @param handler - The handler function that returns the requested resource
    * @returns The router instance for method chaining
    */
-  public read(handler: ReadHandler<TResponse, TItemParams>): this
-  /**
-   * Define a read endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
-   * @param handler - The handler function that returns the requested resource
-   * @returns The router instance for method chaining
-   */
-  public read(
-    config: RouteCommonConfig,
-    handler: ReadHandler<TResponse, TItemParams>,
-  ): this
-  /**
-   * Define a read endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public read(
-    configOrHandler: RouteCommonConfig | ReadHandler<TResponse, TItemParams>,
-    handler?: ReadHandler<TResponse, TItemParams>,
-  ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
+  public read(handler: ReadHandler<TResponse, TItemParams>): this {
+    const { actualHandler } = this.resolveHandlerArgs({
+      configOrHandler: handler,
     })
-    const definition = this.createDefinition({ operation: 'read', config })
+    const definition = this.createDefinition({ operation: 'read' })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
         })
@@ -795,38 +709,15 @@ export class Router<
    * @param handler - The handler function that deletes the resource
    * @returns The router instance for method chaining
    */
-  public delete(handler: DeleteHandler<TItemParams>): this
-  /**
-   * Define a delete endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
-   * @param handler - The handler function that deletes the resource
-   * @returns The router instance for method chaining
-   */
-  public delete(
-    config: RouteCommonConfig,
-    handler: DeleteHandler<TItemParams>,
-  ): this
-  /**
-   * Define a delete endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public delete(
-    configOrHandler: RouteCommonConfig | DeleteHandler<TItemParams>,
-    handler?: DeleteHandler<TItemParams>,
-  ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
+  public delete(handler: DeleteHandler<TItemParams>): this {
+    const { actualHandler } = this.resolveHandlerArgs({
+      configOrHandler: handler,
     })
-    const definition = this.createDefinition({ operation: 'delete', config })
+    const definition = this.createDefinition({ operation: 'delete' })
     // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
         })

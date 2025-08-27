@@ -1,11 +1,10 @@
 # Norte
 
-A modern, type-safe API framework that simplifies building production-ready REST APIs with built-in authentication, automatic OpenAPI documentation, and CRUD operations.
+A modern, type-safe API framework that simplifies building production-ready REST APIs with automatic OpenAPI documentation and CRUD operations.
 
 ## ✨ Features
 
 - 🚀 **Fast Development** - Build APIs with minimal boilerplate
-- 🔐 **Authentication Ready** - Built-in session management with Better Auth
 - 📚 **Auto Documentation** - Automatic OpenAPI/Swagger generation with Scalar UI
 - 🛡️ **Type Safety** - Full TypeScript support with Zod validation
 - 🔧 **CRUD Made Easy** - Chainable methods for common operations
@@ -35,12 +34,7 @@ import { Norte, Router, z, NorteError } from 'norte'
 // 1. Create your main app
 const app = new Norte({
   title: 'My API',
-  version: '1.0.0',
-  authConfig: {
-    // Your Better Auth configuration
-    database: db,
-    emailAndPassword: { enabled: true },
-  }
+  version: '1.0.0'
 })
 
 // 2. Define your response schema
@@ -107,7 +101,6 @@ The main application class that handles setup and configuration.
 const app = new Norte({
   title: string,              // API title for documentation
   version?: string,           // API version (default: "1.0.0")
-  authConfig?: AuthConfig     // Optional auth configuration
 })
 ```
 
@@ -191,15 +184,12 @@ Each method is chainable and generates the appropriate OpenAPI route:
 ```typescript
 // Simple usage
 .list(handler: ListHandler)
-
-// With configuration
-.list(config: RouteCommonConfig, handler: ListHandler)
 ```
 
 **Create Resource**
 ```typescript
 .create(
-  config: RouteCommonConfig & { input: ZodSchema },
+  config: { input: ZodSchema },
   handler: InsertHandler
 )
 ```
@@ -208,15 +198,12 @@ Each method is chainable and generates the appropriate OpenAPI route:
 ```typescript
 // Simple usage
 .read(handler: ReadHandler)
-
-// With configuration
-.read(config: RouteCommonConfig, handler: ReadHandler)
 ```
 
 **Update Resource**
 ```typescript
 .update(
-  config: RouteCommonConfig & { input: ZodSchema },
+  config: { input: ZodSchema },
   handler: UpdateHandler
 )
 ```
@@ -225,9 +212,6 @@ Each method is chainable and generates the appropriate OpenAPI route:
 ```typescript
 // Simple usage
 .delete(handler: DeleteHandler)
-
-// With configuration
-.delete(config: RouteCommonConfig, handler: DeleteHandler)
 ```
 
 #### Handler Types
@@ -235,11 +219,10 @@ Each method is chainable and generates the appropriate OpenAPI route:
 ```typescript
 type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
 
+```typescript
 type HandlerContext<
   TParams extends Record<string, string> = Record<string, never>,
 > = {
-  session: Session | null
-  user: User | null
   param: TParams
   request: NorteRequest
 }
@@ -277,11 +260,7 @@ type DeleteHandler<TParams extends Record<string, string>> = (
 
 #### Configuration Options
 
-```typescript
-interface RouteCommonConfig {
-  isPublic?: boolean  // Skip authentication (default: false)
-}
-```
+Configuration options have been removed. Routes are now always accessible without authentication configuration.
 
 ## 🏗️ Nested Domains
 
@@ -407,55 +386,17 @@ router.read(async ({ param }) => {
 })
 ```
 
-## 🔐 Authentication
-
-Norte includes built-in authentication powered by Better Auth:
-
-### Protected Routes (Default)
-
-```typescript
-// This route requires authentication
-router.list(async ({ session, user }) => {
-  // session and user are available and not null
-  const users = await getUsersForTenant(user.id)
-  return users
-})
-```
-
-### Public Routes
-
-```typescript
-// This route is publicly accessible
-router.list({ isPublic: true }, async ({ session, user }) => {
-  // session and user might be null
-  const publicUsers = await getPublicUsers()
-  return publicUsers
-})
-```
-
-### Authentication Endpoints
-
-Norte automatically sets up authentication endpoints at `/auth/**`:
-
-- `POST /auth/sign-in` - Sign in
-- `POST /auth/sign-up` - Sign up  
-- `POST /auth/sign-out` - Sign out
-- `GET /auth/session` - Get current session
-- And more from Better Auth...
-
-## 📚 Documentation
+##  Documentation
 
 Norte automatically generates interactive API documentation using Scalar:
 
 - **Main docs**: Visit `/` for multi-source Scalar documentation
 - **API docs**: Available at `/docs` (OpenAPI 3.1)
-- **Auth docs**: Authentication endpoints at `/auth/open-api/generate-schema`
 - **Health check**: Available at `/healthcheck`
 
 The documentation includes:
 - Automatic schema generation from Zod schemas
 - Request/response examples
-- Authentication requirements
 - Error response formats
 
 ## 🛠️ Advanced Usage
@@ -534,16 +475,16 @@ const insertSchema = createInsertSchema(userTable).omit({
 const userRouter = new Router('users', {
   schema: userResponseSchema
 })
-  .list(async ({ user }) => {
-    const users = await db.select().from(userTable).where(eq(userTable.tenantId, user.tenantId))
+  .list(async () => {
+    const users = await db.select().from(userTable)
     return users
   })
   .create(
     { input: insertSchema },
-    async ({ input, user }) => {
+    async ({ input }) => {
       const [newUser] = await db
         .insert(userTable)
-        .values({ ...input, tenantId: user.tenantId })
+        .values(input)
         .returning()
       return newUser
     }
@@ -562,19 +503,18 @@ const userRouter = new Router('users', {
   })
 ```
 
-### Multi-Tenant Store Example
+### Store Example
 
 ```typescript
-// Store domain for multi-tenant architecture
+// Store domain
 const storeRouter = new Router('stores', {
   schema: storeSchema
 })
-  .list(async ({ user }) => {
-    // Get stores for current tenant
+  .list(async () => {
+    // Get all stores
     const stores = await db
       .select()
       .from(storeTable)
-      .where(eq(storeTable.tenantId, user.tenantId))
     return stores
   })
 
@@ -582,17 +522,12 @@ const storeRouter = new Router('stores', {
 const ordersRouter = new Router(storeRouter, 'orders', {
   schema: orderSchema
 })
-  .list(async ({ param, user }) => {
+  .list(async ({ param }) => {
     // param.storeId automatically available with validation
     const orders = await db
       .select()
       .from(orderTable)
-      .where(
-        and(
-          eq(orderTable.storeId, param.storeId),
-          eq(orderTable.tenantId, user.tenantId) // Multi-tenant security
-        )
-      )
+      .where(eq(orderTable.storeId, param.storeId))
     return orders
   })
 
@@ -624,9 +559,9 @@ const postRouter = new Router('posts', {
 })
   .create(
     { input: createPostSchema },
-    async ({ input, user }) => {
+    async ({ input }) => {
       // Input is automatically validated against createPostSchema
-      const post = await createPost({ ...input, authorId: user.id })
+      const post = await createPost(input)
       return post
     }
   )
