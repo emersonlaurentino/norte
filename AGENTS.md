@@ -1,0 +1,1 @@
+Todo o framework deve seguir os principios do [manifesto](./manifest.md)
