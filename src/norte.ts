@@ -1,25 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import type { BetterAuthOptions, Session, User } from 'better-auth'
-import { betterAuth } from 'better-auth'
 import type { MiddlewareHandler } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
 import type { z } from 'zod'
 import { Router } from './router'
 
-declare module 'hono' {
-  interface ContextVariableMap {
-    session: Session | null
-    user: User | null
-  }
-}
-
 interface NorteConfig {
   title: string
   version?: string
-  authConfig: BetterAuthOptions
 }
 
 export class Norte {
@@ -38,7 +27,6 @@ export class Norte {
 
   private ensureInitialized() {
     if (!this.isInitialized) {
-      this.setupAuth(this.config.authConfig)
       this.setupDocs()
       this.setupHealthcheck()
       this.isInitialized = true
@@ -58,38 +46,6 @@ export class Norte {
     this.middleware(prettyJSON())
   }
 
-  private setupAuth(authConfig: BetterAuthOptions) {
-    const auth = betterAuth(authConfig)
-    this.hono.use('*', this.authMiddleware(auth))
-    this.scalarSources.push({
-      url: '/auth/open-api/generate-schema',
-      title: 'Auth',
-    })
-    this.hono.on(['POST', 'GET'], '/auth/**', (c) => auth.handler(c.req.raw))
-    this.hono.get(
-      '/',
-      Scalar({
-        pageTitle: this.config.title,
-        sources: this.scalarSources,
-      }),
-    )
-  }
-
-  private authMiddleware(auth: ReturnType<typeof betterAuth>) {
-    return createMiddleware(async (c, next) => {
-      const headers = c.req.raw.headers
-      const session = await auth.api.getSession({ headers })
-      if (!session) {
-        c.set('user', null)
-        c.set('session', null)
-        return next()
-      }
-      c.set('user', session.user)
-      c.set('session', session.session)
-      return next()
-    })
-  }
-
   private setupDocs() {
     const openApi = {
       openapi: '3.1.0',
@@ -100,6 +56,13 @@ export class Norte {
     }
     this.hono.doc31('/docs', openApi)
     this.hono.getOpenAPI31Document(openApi)
+    this.hono.get(
+      '/',
+      Scalar({
+        pageTitle: this.config.title,
+        sources: this.scalarSources,
+      }),
+    )
   }
 
   public register<TResponse extends z.ZodType, TDomain extends string = string>(

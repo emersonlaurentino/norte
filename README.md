@@ -1,11 +1,10 @@
 # Norte
 
-A modern, type-safe API framework that simplifies building production-ready REST APIs with built-in authentication, automatic OpenAPI documentation, and CRUD operations.
+A modern, type-safe API framework that simplifies building production-ready REST APIs with automatic OpenAPI documentation and CRUD operations.
 
 ## ✨ Features
 
 - 🚀 **Fast Development** - Build APIs with minimal boilerplate
-- 🔐 **Authentication Ready** - Built-in session management with Better Auth
 - 📚 **Auto Documentation** - Automatic OpenAPI/Swagger generation with Scalar UI
 - 🛡️ **Type Safety** - Full TypeScript support with Zod validation
 - 🔧 **CRUD Made Easy** - Chainable methods for common operations
@@ -18,13 +17,13 @@ A modern, type-safe API framework that simplifies building production-ready REST
 ### Installation
 
 ```bash
-bun add norte better-auth
+bun add norte
 # or
-npm install norte better-auth
+npm install norte
 # or
-yarn add norte better-auth
+yarn add norte
 # or
-pnpm add norte better-auth
+pnpm add norte
 ```
 
 ### Basic Usage
@@ -35,12 +34,7 @@ import { Norte, Router, z, NorteError } from 'norte'
 // 1. Create your main app
 const app = new Norte({
   title: 'My API',
-  version: '1.0.0',
-  authConfig: {
-    // Your Better Auth configuration
-    database: db,
-    emailAndPassword: { enabled: true },
-  }
+  version: '1.0.0'
 })
 
 // 2. Define your response schema
@@ -107,7 +101,6 @@ The main application class that handles setup and configuration.
 const app = new Norte({
   title: string,              // API title for documentation
   version?: string,           // API version (default: "1.0.0")
-  authConfig: BetterAuthOptions  // Better Auth configuration
 })
 ```
 
@@ -238,8 +231,6 @@ type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
 type HandlerContext<
   TParams extends Record<string, string> = Record<string, never>,
 > = {
-  session: Session | null
-  user: User | null
   param: TParams
   request: NorteRequest
 }
@@ -277,11 +268,7 @@ type DeleteHandler<TParams extends Record<string, string>> = (
 
 #### Configuration Options
 
-```typescript
-interface RouteCommonConfig {
-  isPublic?: boolean  // Skip authentication (default: false)
-}
-```
+Routes can be configured with input schemas for validation.
 
 ## 🏗️ Nested Domains
 
@@ -296,8 +283,8 @@ import { Router, z, NorteError } from 'norte'
 const storeRouter = new Router('stores', {
   schema: storeSchema
 })
-  .list(async ({ user }) => {
-    const stores = await getStoresByUser(user.id)
+  .list(async () => {
+    const stores = await getStores()
     return stores
   })
 
@@ -407,55 +394,18 @@ router.read(async ({ param }) => {
 })
 ```
 
-## 🔐 Authentication
-
-Norte includes built-in authentication powered by Better Auth:
-
-### Protected Routes (Default)
-
-```typescript
-// This route requires authentication
-router.list(async ({ session, user }) => {
-  // session and user are available and not null
-  const users = await getUsersForTenant(user.id)
-  return users
-})
-```
-
-### Public Routes
-
-```typescript
-// This route is publicly accessible
-router.list({ isPublic: true }, async ({ session, user }) => {
-  // session and user might be null
-  const publicUsers = await getPublicUsers()
-  return publicUsers
-})
-```
-
-### Authentication Endpoints
-
-Norte automatically sets up authentication endpoints at `/auth/**`:
-
-- `POST /auth/sign-in` - Sign in
-- `POST /auth/sign-up` - Sign up  
-- `POST /auth/sign-out` - Sign out
-- `GET /auth/session` - Get current session
-- And more from Better Auth...
-
 ## 📚 Documentation
 
 Norte automatically generates interactive API documentation using Scalar:
 
 - **Main docs**: Visit `/` for multi-source Scalar documentation
 - **API docs**: Available at `/docs` (OpenAPI 3.1)
-- **Auth docs**: Authentication endpoints at `/auth/open-api/generate-schema`
 - **Health check**: Available at `/healthcheck`
 
 The documentation includes:
 - Automatic schema generation from Zod schemas
 - Request/response examples
-- Authentication requirements
+- Interactive API testing
 - Error response formats
 
 ## 🛠️ Advanced Usage
@@ -642,7 +592,6 @@ MIT © Emerson Laurentino
 
 ## 🔗 Links
 
-- [Better Auth](https://better-auth.com)
 - [Hono](https://hono.dev)
 - [Zod](https://zod.dev)
 - [Scalar](https://scalar.com)

@@ -1,7 +1,5 @@
 import { createRoute, OpenAPIHono, type RouteConfig } from '@hono/zod-openapi'
-import type { Session, User } from 'better-auth'
 import type { Context } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
 import { NorteError } from './error'
 import { commonResponses } from './utils'
@@ -25,10 +23,6 @@ interface RouterConfig<TResponse extends ZodSchema> {
   schema: TResponse
 }
 
-interface RouteCommonConfig {
-  isPublic?: boolean
-}
-
 type NorteRequest = {
   headers: Headers
 }
@@ -36,8 +30,6 @@ type NorteRequest = {
 type HandlerContext<
   TParams extends Record<string, string> = Record<string, never>,
 > = {
-  session: Session | null
-  user: User | null
   param: TParams
   request: NorteRequest
 }
@@ -221,18 +213,6 @@ export class Router<
   }
 
   /**
-   * Create a middleware that checks if the user is authenticated
-   * @returns A middleware function that validates authentication
-   */
-  private privateMiddleware() {
-    return createMiddleware(async (c, next) => {
-      const session = c.get('session')
-      if (!session) return c.json({ error: 'UNAUTHORIZED' }, 401)
-      return next()
-    })
-  }
-
-  /**
    * Get the singular name of the domain (e.g., 'store' for 'stores')
    * @returns The singular name of the domain in lowercase
    */
@@ -250,9 +230,9 @@ export class Router<
    * @returns The resolved configuration and handler function
    */
   private resolveHandlerArgs<T>(options: {
-    configOrHandler: RouteCommonConfig | T
+    configOrHandler: Record<string, never> | T
     handler?: T
-  }): { config: RouteCommonConfig; actualHandler: NonNullable<T> } {
+  }): { config: Record<string, never>; actualHandler: NonNullable<T> } {
     const { configOrHandler, handler } = options
     if (typeof configOrHandler === 'function') {
       return { config: {}, actualHandler: configOrHandler as NonNullable<T> }
@@ -261,7 +241,7 @@ export class Router<
       throw new Error('Handler is required when config is provided')
     }
     return {
-      config: configOrHandler as RouteCommonConfig,
+      config: configOrHandler as Record<string, never>,
       actualHandler: handler as NonNullable<T>,
     }
   }
@@ -402,7 +382,7 @@ export class Router<
   private buildRequestObject(options: {
     includeId: boolean
     hasInput: boolean
-    config: RouteCommonConfig & { input?: ZodSchema }
+    config: Record<string, never> & { input?: ZodSchema }
   }) {
     const { includeId, hasInput, config } = options
     // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
@@ -500,7 +480,7 @@ export class Router<
    */
   private createDefinition(options: {
     operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-    config: RouteCommonConfig & { input?: ZodSchema }
+    config: Record<string, never> & { input?: ZodSchema }
   }) {
     const { operation, config } = options
     const opConfig = this.getOperationConfig({ operation })
@@ -549,7 +529,6 @@ export class Router<
 
     return createRoute({
       ...routeConfig,
-      ...(config.isPublic ? {} : { middleware: [this.privateMiddleware()] }),
       tags: [this.name],
     })
   }
@@ -564,12 +543,12 @@ export class Router<
   ): this
   /**
    * Define a list endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
+   * @param config - Route configuration options
    * @param handler - The handler function that returns an array of resources
    * @returns The router instance for method chaining
    */
   public list(
-    config: RouteCommonConfig,
+    config: Record<string, never>,
     handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
   ): this
   /**
@@ -580,7 +559,7 @@ export class Router<
    */
   public list(
     configOrHandler:
-      | RouteCommonConfig
+      | Record<string, never>
       | ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
     handler?: ListHandler<
       TResponse,
@@ -596,8 +575,6 @@ export class Router<
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TCollectionParams &
             DomainToParam<TDomain>,
           request: { headers: c.req.raw.headers },
@@ -627,7 +604,7 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public create<TInput extends ZodSchema>(
-    config: RouteCommonConfig & { input: TInput },
+    config: Record<string, never> & { input: TInput },
     handler: InsertHandler<
       TInput,
       TResponse,
@@ -647,8 +624,6 @@ export class Router<
           )
         }
         const result = await handler({
-          session: c.get('session'),
-          user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param'),
           request: { headers: c.req.raw.headers },
@@ -678,7 +653,7 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public update<TInput extends ZodSchema>(
-    config: RouteCommonConfig & { input: TInput },
+    config: Record<string, never> & { input: TInput },
     handler: UpdateHandler<TInput, TResponse, TItemParams>,
   ) {
     const definition = this.createDefinition({ operation: 'update', config })
@@ -694,8 +669,6 @@ export class Router<
           )
         }
         const result = await handler({
-          session: c.get('session'),
-          user: c.get('user'),
           input: validatedInput.data,
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
@@ -726,12 +699,12 @@ export class Router<
   public read(handler: ReadHandler<TResponse, TItemParams>): this
   /**
    * Define a read endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
+   * @param config - Route configuration options
    * @param handler - The handler function that returns the requested resource
    * @returns The router instance for method chaining
    */
   public read(
-    config: RouteCommonConfig,
+    config: Record<string, never>,
     handler: ReadHandler<TResponse, TItemParams>,
   ): this
   /**
@@ -741,7 +714,9 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public read(
-    configOrHandler: RouteCommonConfig | ReadHandler<TResponse, TItemParams>,
+    configOrHandler:
+      | Record<string, never>
+      | ReadHandler<TResponse, TItemParams>,
     handler?: ReadHandler<TResponse, TItemParams>,
   ): this {
     const { config, actualHandler } = this.resolveHandlerArgs({
@@ -753,8 +728,6 @@ export class Router<
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
         })
@@ -784,12 +757,12 @@ export class Router<
   public delete(handler: DeleteHandler<TItemParams>): this
   /**
    * Define a delete endpoint with configuration options
-   * @param config - Route configuration options (e.g., isPublic)
+   * @param config - Route configuration options
    * @param handler - The handler function that deletes the resource
    * @returns The router instance for method chaining
    */
   public delete(
-    config: RouteCommonConfig,
+    config: Record<string, never>,
     handler: DeleteHandler<TItemParams>,
   ): this
   /**
@@ -799,7 +772,7 @@ export class Router<
    * @returns The router instance for method chaining
    */
   public delete(
-    configOrHandler: RouteCommonConfig | DeleteHandler<TItemParams>,
+    configOrHandler: Record<string, never> | DeleteHandler<TItemParams>,
     handler?: DeleteHandler<TItemParams>,
   ): this {
     const { config, actualHandler } = this.resolveHandlerArgs({
@@ -811,8 +784,6 @@ export class Router<
     this.router.openapi(definition, async (c: any) => {
       try {
         const result = await actualHandler({
-          session: c.get('session'),
-          user: c.get('user'),
           param: c.req.valid('param') as TItemParams,
           request: { headers: c.req.raw.headers },
         })

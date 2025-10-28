@@ -15,9 +15,6 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'index',
     },
-    rollupOptions: {
-      external: ['better-auth'],
-    },
     emptyOutDir: true,
   },
 })
