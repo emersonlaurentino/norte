@@ -70,8 +70,8 @@ productRouter.read({}, async () => {
 })
 
 // GET /users/:userId/products - retorna Product[]
-productRouter.list({}, async ({ pagination }) => {
-  console.log(pagination)
+productRouter.list({}, async ({ pagination, log }) => {
+  log.info(pagination, 'Listing products')
   return [
     { id: '1', name: 'Product 1', price: 99.99 },
     { id: '2', name: 'Product 2', price: 149.99 },
