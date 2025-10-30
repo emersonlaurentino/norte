@@ -58,12 +58,12 @@ export type Handler<TStore extends NorteStore = NorteStore> = (
   ctx: HandlerContext<TStore>,
 ) => Promise<unknown> | unknown
 
-export type ListHandler<TStore extends NorteStore = NorteStore> =
-  Handler<TStore> & {
-    pagination: PaginationContext
-  }
+export type ListHandler<TStore extends NorteStore = NorteStore> = (
+  ctx: HandlerContext<TStore> & { pagination: PaginationContext },
+) => Promise<unknown> | unknown
 
 export type RouterOptions<TStore extends NorteStore = NorteStore> = {
+  schema: NorteSchema // Schema de response do domínio (obrigatório)
   beforeHandler?: BeforeHook<TStore>[]
   afterHandler?: AfterHook<TStore>[]
 }
@@ -90,25 +90,28 @@ export class Router<TStore extends NorteStore = NorteStore> {
   private readonly options: RouterOptions<TStore>
   private readonly definitions: RouteDefinition<TStore>[] = []
 
-  constructor(domain: string, options?: RouterOptions<TStore>)
+  constructor(domain: string, options: RouterOptions<TStore>)
   constructor(
     parent: Router<TStore>,
     domain: string,
-    options?: RouterOptions<TStore>,
+    options: RouterOptions<TStore>,
   )
   constructor(
     parentOrDomain: Router<TStore> | string,
-    domainOrOptions?: string | RouterOptions<TStore>,
+    domainOrOptions: string | RouterOptions<TStore>,
     options?: RouterOptions<TStore>,
   ) {
     if (typeof parentOrDomain === 'string') {
       this.domain = parentOrDomain
       this.parent = null
-      this.options = (domainOrOptions as RouterOptions<TStore>) ?? {}
+      this.options = domainOrOptions as RouterOptions<TStore>
     } else {
       this.parent = parentOrDomain
       this.domain = domainOrOptions as string
-      this.options = options ?? {}
+      if (!options) {
+        throw new Error('RouterOptions with schema is required.')
+      }
+      this.options = options
     }
 
     if (!this.domain) {
@@ -167,9 +170,15 @@ export class Router<TStore extends NorteStore = NorteStore> {
     method: string,
     path: string,
     options: RouteOptions<TStore>,
-    handler: Handler<TStore>,
+    handler: Handler<TStore> | ListHandler<TStore>,
   ): this {
-    this.definitions.push({ method, path, options, handler, router: this })
+    this.definitions.push({
+      method,
+      path,
+      options,
+      handler: handler as Handler<TStore>,
+      router: this,
+    })
     return this
   }
 

@@ -1,6 +1,12 @@
 import type { ValidateFunction } from 'ajv'
 import Ajv from 'ajv'
-import type { AfterHook, BeforeHook, Handler, RouteDefinition } from './router'
+import type {
+  AfterHook,
+  BeforeHook,
+  Handler,
+  NorteSchema,
+  RouteDefinition,
+} from './router'
 import { NorteError, Router } from './router'
 import type { NorteLogger, NorteStore } from './types'
 
@@ -55,23 +61,33 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     // 3. Pre-compile schemas
     const validators = this.compileSchemas(options)
 
-    // 4. Merge hooks from router and route level
+    // 4. Compile response schema from router (if defined)
+    const routerOptions = Router.getInternals(router).options
+    const responseValidator = this.compileResponseSchema(
+      method,
+      routerOptions.schema,
+    )
+
+    // 5. Merge hooks from router and route level
     const beforeHooks = this.mergeHooks(
-      Router.getInternals(router).options.beforeHandler,
+      routerOptions.beforeHandler,
       options.beforeHandler,
     )
     const afterHooks = this.mergeHooks(
-      Router.getInternals(router).options.afterHandler,
+      routerOptions.afterHandler,
       options.afterHandler,
     )
 
-    // 5. Determine default status based on method
+    // 6. Determine default status based on method
     const defaultStatus = this.getDefaultStatus(method)
 
-    // 6. Create the "super function" - inlines entire lifecycle
+    // 7. Create the "super function" - inlines entire lifecycle
     const execute = this.createSuperFunction({
+      method,
+      path,
       paramNames,
       validators,
+      responseValidator,
       beforeHooks,
       handler,
       afterHooks,
@@ -189,6 +205,23 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
+  private compileResponseSchema(
+    method: string,
+    schema: NorteSchema,
+  ): ValidateFunction {
+    // Para GET / (list), valida como array do schema
+    if (method.toUpperCase() === 'GET') {
+      // Se o path termina com um parâmetro (e.g., /:userId), é um .read()
+      // Caso contrário, é um .list() e precisa ser array
+      // Vamos verificar isso no createSuperFunction baseado no path
+      // Por enquanto, vamos retornar o schema compilado direto
+      return this.ajv.compile(schema)
+    }
+
+    // Para outros métodos (POST/PATCH), valida o schema direto
+    return this.ajv.compile(schema)
+  }
+
   private mergeHooks<T>(routerHooks?: T[], routeHooks?: T[]): T[] {
     return [...(routerHooks || []), ...(routeHooks || [])]
   }
@@ -205,19 +238,33 @@ export class Norte<TStore extends NorteStore = NorteStore> {
   }
 
   private createSuperFunction(config: {
+    method: string
+    path: string
     paramNames: string[]
     validators: {
       body?: ValidateFunction | undefined
       query?: ValidateFunction | undefined
       param?: ValidateFunction | undefined
     }
+    responseValidator: ValidateFunction
     beforeHooks: BeforeHook<TStore>[]
     handler: Handler<TStore>
     afterHooks: AfterHook<TStore>[]
     defaultStatus: number
   }): (req: Request, params: Record<string, string>) => Promise<Response> {
-    const { validators, beforeHooks, handler, afterHooks, defaultStatus } =
-      config
+    const {
+      method,
+      path,
+      validators,
+      responseValidator,
+      beforeHooks,
+      handler,
+      afterHooks,
+      defaultStatus,
+    } = config
+
+    // Determina se é um .list() - GET sem parâmetro na rota
+    const isListMethod = method.toUpperCase() === 'GET' && path === ''
 
     // This is the "super function" - handles everything for this route
     return async (
@@ -307,6 +354,37 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           log,
         })
 
+        // 3.1. Validate response
+        if (!(result instanceof Response)) {
+          // Para .list(), valida cada item do array
+          if (isListMethod) {
+            if (!Array.isArray(result)) {
+              throw new NorteError(
+                'INVALID_OUTPUT',
+                'List method must return an array',
+              )
+            }
+            // Valida cada item do array
+            for (let i = 0; i < result.length; i++) {
+              const item = result[i]
+              if (!responseValidator(item)) {
+                throw new NorteError(
+                  'INVALID_OUTPUT',
+                  `Response validation failed for item ${i}: ${this.ajv.errorsText(responseValidator.errors)}`,
+                )
+              }
+            }
+          } else {
+            // Para outros métodos, valida o objeto direto
+            if (!responseValidator(result)) {
+              throw new NorteError(
+                'INVALID_OUTPUT',
+                `Response validation failed: ${this.ajv.errorsText(responseValidator.errors)}`,
+              )
+            }
+          }
+        }
+
         // 4. Execute afterHandler hooks
         const responseHeaders = new Headers()
         const responseState = { status: defaultStatus }
@@ -394,6 +472,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
   private errorCodeToStatus(code: string): number {
     const statusMap: Record<string, number> = {
       INVALID_INPUT: 400,
+      INVALID_OUTPUT: 500, // Erro interno - response não conforme com schema
       UNAUTHORIZED: 401,
       FORBIDDEN: 403,
       NOT_FOUND: 404,
