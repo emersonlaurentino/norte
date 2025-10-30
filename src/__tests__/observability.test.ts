@@ -2,6 +2,7 @@ import { Type as t } from '@sinclair/typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
+import type { NorteLogger, BeforeHookContext, NorteStore } from '../types'
 
 describe('Observability', () => {
   beforeEach(() => {
@@ -20,7 +21,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedLog: any = null
+      let capturedLog: NorteLogger | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -51,9 +52,9 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedLog: any = null
+      let capturedLog: NorteLogger | null = null
 
-      const testHook = async ({ log, store }: any) => {
+      const testHook = async ({ log, store }: BeforeHookContext<NorteStore>) => {
         capturedLog = log
         log.info({ hook: 'before' }, 'Before hook executed')
         return store
@@ -82,9 +83,9 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedLog: any = null
+      let capturedLog: NorteLogger | null = null
 
-      const afterHook = async ({ log }: any) => {
+      const afterHook = async ({ log }: { log: NorteLogger }) => {
         capturedLog = log
         log.info({ hook: 'after' }, 'After hook executed')
       }
@@ -169,8 +170,8 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let parentBindings: any = null
-      let childBindings: any = null
+      let parentBindings: Record<string, unknown> | null = null
+      let childBindings: Record<string, unknown> | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -210,7 +211,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedLog: any = null
+      let capturedLog: NorteLogger | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -224,7 +225,7 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedLog).toBeDefined()
-      expect(capturedLog.level).toBe('debug')
+      expect(capturedLog?.level).toBe('debug')
     })
 
     it('should allow disabling logger', async () => {
@@ -234,7 +235,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedLog: any = null
+      let capturedLog: NorteLogger | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -249,7 +250,7 @@ describe('Observability', () => {
 
       // Logger should be a noop logger
       expect(capturedLog).toBeDefined()
-      expect(capturedLog.level).toBe('silent')
+      expect(capturedLog?.level).toBe('silent')
     })
   })
 
@@ -265,7 +266,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedBindings: any = null
+      let capturedBindings: Record<string, unknown> | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -281,7 +282,9 @@ describe('Observability', () => {
       expect(capturedBindings).toHaveProperty('requestId')
       // When telemetry is enabled, should have trace_id
       expect(capturedBindings).toHaveProperty('trace_id')
-      expect(typeof capturedBindings.trace_id).toBe('string')
+      expect(typeof (capturedBindings as { trace_id: string }).trace_id).toBe(
+        'string',
+      )
     })
 
     it('should extract traceParent from headers when provided', async () => {
@@ -295,7 +298,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedBindings: any = null
+      let capturedBindings: Record<string, unknown> | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
@@ -318,7 +321,9 @@ describe('Observability', () => {
 
       expect(capturedBindings).toHaveProperty('trace_id')
       // Extract trace-id from traceParent (32 hex chars after version-traceId)
-      expect(capturedBindings.trace_id).toBe('0af7651916cd43dd8448eb211c80319c')
+      expect((capturedBindings as { trace_id: string }).trace_id).toBe(
+        '0af7651916cd43dd8448eb211c80319c',
+      )
     })
 
     it('should work without telemetry when not configured', async () => {
@@ -328,7 +333,7 @@ describe('Observability', () => {
         name: t.String(),
       })
 
-      let capturedBindings: any = null
+      let capturedBindings: Record<string, unknown> | null = null
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {

@@ -3,8 +3,63 @@ import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
+// OpenAPI Document Types
+interface OpenAPIInfo {
+  title: string
+  version: string
+  description?: string
+}
+
+interface OpenAPIServer {
+  url: string
+  description?: string
+}
+
+interface OpenAPIParameter {
+  name: string
+  in: 'path' | 'query' | 'header'
+  required?: boolean
+  schema?: Record<string, unknown>
+}
+
+interface OpenAPIOperation {
+  operationId: string
+  tags: string[]
+  summary?: string
+  description?: string
+  parameters?: OpenAPIParameter[]
+  requestBody?: {
+    required: boolean
+    content: Record<string, { schema: Record<string, unknown> }>
+  }
+  responses: Record<
+    string,
+    {
+      description: string
+      content?: Record<string, { schema: Record<string, unknown> }>
+    }
+  >
+  'x-norte-invalidates'?: string[]
+  'x-norte-domain': string
+  'x-norte-version': number
+}
+
+interface OpenAPIPathItem {
+  get?: OpenAPIOperation
+  post?: OpenAPIOperation
+  patch?: OpenAPIOperation
+  delete?: OpenAPIOperation
+}
+
+interface OpenAPIDocument {
+  openapi: string
+  info: OpenAPIInfo
+  servers?: OpenAPIServer[]
+  paths: Record<string, OpenAPIPathItem>
+}
+
 // Helper to get OpenAPI document via HTTP
-async function getOpenAPIDoc(app: Norte): Promise<Record<string, unknown>> {
+async function getOpenAPIDoc(app: Norte): Promise<OpenAPIDocument> {
   const request = new Request('http://localhost/openapi.json')
   const response = await app.fetch(request)
   return await response.json()
@@ -77,12 +132,12 @@ describe('OpenAPI Generation', () => {
 
     // Check basic structure
     expect(openapi.openapi).toBe('3.0.3')
-    expect((openapi.info as any).title).toBe('Test API')
-    expect((openapi.info as any).version).toBe('1.0.0')
-    expect((openapi.info as any).description).toBe('Test API description')
+    expect(openapi.info.title).toBe('Test API')
+    expect(openapi.info.version).toBe('1.0.0')
+    expect(openapi.info.description).toBe('Test API description')
 
     // Check paths
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
     expect(paths).toBeDefined()
 
     // Check list endpoint
@@ -152,7 +207,7 @@ describe('OpenAPI Generation', () => {
     app.register(usersRouter)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     // POST should invalidate GET (list)
     expect(paths['/v1/users'].post['x-norte-invalidates']).toBeDefined()
@@ -202,7 +257,7 @@ describe('OpenAPI Generation', () => {
     app.register(usersV2)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     // Check both versions exist
     expect(paths['/v1/users']).toBeDefined()
@@ -247,18 +302,18 @@ describe('OpenAPI Generation', () => {
     app.register(productsRouter)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     // Check nested path
     expect(paths['/v1/stores/{storeId}/products']).toBeDefined()
     expect(paths['/v1/stores/{storeId}/products'].get).toBeDefined()
-    expect(paths['/v1/stores/{storeId}/products'].get.operationId).toBe(
+    expect(paths['/v1/stores/{storeId}/products'].get?.operationId).toBe(
       'listProduct',
     )
 
     // Check parameters include storeId
-    const params = paths['/v1/stores/{storeId}/products'].get.parameters || []
-    expect(params.some((p: any) => p.name === 'storeId')).toBe(false) // Params from path are extracted from route options
+    const params = paths['/v1/stores/{storeId}/products'].get?.parameters || []
+    expect(params.some((p) => p.name === 'storeId')).toBe(false) // Params from path are extracted from route options
   })
 
   it('should serve OpenAPI document via HTTP', async () => {
@@ -350,8 +405,8 @@ describe('OpenAPI Generation', () => {
 
     const request1 = new Request('http://localhost/openapi.json')
     const response1 = await app.fetch(request1)
-    const doc1 = await response1.json()
-    const paths1 = Object.keys((doc1.paths as Record<string, unknown>) || {})
+    const doc1 = (await response1.json()) as OpenAPIDocument
+    const paths1 = Object.keys(doc1.paths || {})
 
     // Register another router
     const productsRouter = new Router('products', {
@@ -365,8 +420,8 @@ describe('OpenAPI Generation', () => {
 
     const request2 = new Request('http://localhost/openapi.json')
     const response2 = await app.fetch(request2)
-    const doc2 = await response2.json()
-    const paths2 = Object.keys((doc2.paths as Record<string, unknown>) || {})
+    const doc2 = (await response2.json()) as OpenAPIDocument
+    const paths2 = Object.keys(doc2.paths || {})
 
     // More paths in second document
     expect(paths2.length).toBeGreaterThan(paths1.length)
@@ -400,7 +455,7 @@ describe('OpenAPI Generation', () => {
     app.register(usersRouter)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     const createOp = paths['/v1/users'].post
     expect(createOp.requestBody).toBeDefined()
@@ -436,7 +491,7 @@ describe('OpenAPI Generation', () => {
     app.register(usersRouter)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     // List should return array
     const listOp = paths['/v1/users'].get
@@ -502,7 +557,7 @@ describe('OpenAPI Generation', () => {
     app.register(usersRouter)
 
     const openapi = await getOpenAPIDoc(app)
-    const paths = openapi.paths as Record<string, Record<string, any>>
+    const paths = openapi.paths
 
     const deleteOp = paths['/v1/users/{userId}'].delete
     expect(deleteOp.responses['204']).toBeDefined()
@@ -529,11 +584,9 @@ describe('OpenAPI Generation', () => {
 
     const openapi = await getOpenAPIDoc(app)
 
-    expect((openapi.info as any).title).toBe('Norte API')
-    expect((openapi.info as any).version).toBe('1.0.0')
-    expect((openapi.info as any).description).toBe(
-      'API generated by Norte Framework',
-    )
-    expect((openapi.servers as any)[0].url).toBe('http://localhost:3000')
+    expect(openapi.info.title).toBe('Norte API')
+    expect(openapi.info.version).toBe('1.0.0')
+    expect(openapi.info.description).toBe('API generated by Norte Framework')
+    expect(openapi.servers?.[0].url).toBe('http://localhost:3000')
   })
 })
