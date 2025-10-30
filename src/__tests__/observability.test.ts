@@ -306,7 +306,8 @@ describe('Observability', () => {
       app.register(usersRouter)
 
       // W3C Trace Context format
-      const traceParent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
+      const traceParent =
+        '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
       const req = new Request('http://localhost/v1/users', {
         method: 'GET',
         headers: {
@@ -346,4 +347,3 @@ describe('Observability', () => {
     })
   })
 })
-

@@ -145,7 +145,9 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/v1/users/999', { method: 'DELETE' })
+    const req = new Request('http://localhost/v1/users/999', {
+      method: 'DELETE',
+    })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(204)
@@ -165,7 +167,9 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/v1/nonexistent', { method: 'GET' })
+    const req = new Request('http://localhost/v1/nonexistent', {
+      method: 'GET',
+    })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(404)

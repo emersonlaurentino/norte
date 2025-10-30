@@ -298,7 +298,6 @@ describe('OpenAPI Generation', () => {
     expect(json.paths['/v1/users']).toBeDefined()
   })
 
-
   it('should cache OpenAPI document after first generation', async () => {
     const app = new Norte({ logger: false })
 

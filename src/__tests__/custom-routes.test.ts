@@ -253,7 +253,9 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/v1/users/special', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/special', {
+      method: 'GET',
+    })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)

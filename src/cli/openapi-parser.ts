@@ -38,14 +38,17 @@ export type OpenAPIOperation = {
     required?: boolean
     schema: unknown
   }>
-  responses: Record<string, {
-    description: string
-    content?: {
-      'application/json'?: {
-        schema: unknown
+  responses: Record<
+    string,
+    {
+      description: string
+      content?: {
+        'application/json'?: {
+          schema: unknown
+        }
       }
     }
-  }>
+  >
   'x-norte-invalidates'?: string[]
   'x-norte-domain'?: string
   'x-norte-version'?: number
@@ -85,7 +88,9 @@ export async function parseOpenAPI(input: string): Promise<ParsedOpenAPI> {
     // Fetch from URL
     const response = await fetch(input)
     if (!response.ok) {
-      throw new Error(`Failed to fetch OpenAPI spec from ${input}: ${response.statusText}`)
+      throw new Error(
+        `Failed to fetch OpenAPI spec from ${input}: ${response.statusText}`,
+      )
     }
     spec = await response.json()
   } else {
@@ -116,13 +121,14 @@ export async function parseOpenAPI(input: string): Promise<ParsedOpenAPI> {
 
       // Extract response schema (200 or 201)
       const successResponse = op.responses['200'] || op.responses['201']
-      const responseSchema = successResponse?.content?.['application/json']?.schema
+      const responseSchema =
+        successResponse?.content?.['application/json']?.schema
 
       // Extract request body schema
       const requestBody = op.requestBody?.content?.['application/json']?.schema
 
       // Parse parameters
-      const parameters = (op.parameters || []).map(param => ({
+      const parameters = (op.parameters || []).map((param) => ({
         name: param.name,
         in: param.in,
         required: param.required ?? false,
@@ -152,4 +158,3 @@ export async function parseOpenAPI(input: string): Promise<ParsedOpenAPI> {
     operations,
   }
 }
-

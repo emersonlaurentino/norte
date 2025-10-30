@@ -401,4 +401,3 @@ describe('Pagination', () => {
     expect(data).toHaveLength(2)
   })
 })
-
