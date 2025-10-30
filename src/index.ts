@@ -13,8 +13,8 @@ export type {
   HandlerContext,
   IValidator,
   ListHandler,
-  LogLevel,
   LoggerOptions,
+  LogLevel,
   NorteLogger,
   NorteOptions,
   NorteSchema,
@@ -28,4 +28,3 @@ export type {
   RouterOptions,
   TelemetryOptions,
 } from './types'
-export { createPaginatedResponse } from './types'

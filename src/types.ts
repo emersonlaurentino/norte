@@ -165,16 +165,3 @@ export type PaginatedResponse<T> = {
   data: T[]
   pagination: PaginationMeta
 }
-
-export function createPaginatedResponse<T>(
-  data: T[],
-  pagination: Omit<PaginationMeta, 'totalPages'>,
-): PaginatedResponse<T> {
-  return {
-    data,
-    pagination: {
-      ...pagination,
-      totalPages: Math.ceil(pagination.total / pagination.limit),
-    },
-  }
-}
