@@ -2,7 +2,7 @@ import { Type as t } from '@sinclair/typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
-import type { NorteLogger, BeforeHookContext, NorteStore } from '../types'
+import type { BeforeHookContext, NorteLogger, NorteStore } from '../types'
 
 describe('Observability', () => {
   beforeEach(() => {
@@ -39,10 +39,11 @@ describe('Observability', () => {
       expect(res.status).toBe(200)
       expect(capturedLog).toBeDefined()
       // Logger should be a Pino instance with requestId in bindings
-      expect(capturedLog.bindings).toBeDefined()
-      expect(capturedLog.bindings()).toHaveProperty('requestId')
-      expect(typeof capturedLog.bindings().requestId).toBe('string')
-      expect(capturedLog.bindings().requestId).toMatch(/^[a-f0-9-]+$/) // UUID format
+      const logger = capturedLog as unknown as NorteLogger
+      expect(logger.bindings).toBeDefined()
+      expect(logger.bindings()).toHaveProperty('requestId')
+      expect(typeof logger.bindings().requestId).toBe('string')
+      expect(logger.bindings().requestId).toMatch(/^[a-f0-9-]+$/) // UUID format
     })
 
     it('should inject logger with requestId in beforeHandler hooks', async () => {
@@ -54,7 +55,10 @@ describe('Observability', () => {
 
       let capturedLog: NorteLogger | null = null
 
-      const testHook = async ({ log, store }: BeforeHookContext<NorteStore>) => {
+      const testHook = async ({
+        log,
+        store,
+      }: BeforeHookContext<NorteStore>) => {
         capturedLog = log
         log.info({ hook: 'before' }, 'Before hook executed')
         return store
@@ -72,8 +76,9 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedLog).toBeDefined()
-      expect(capturedLog.bindings).toBeDefined()
-      expect(capturedLog.bindings()).toHaveProperty('requestId')
+      const logger = capturedLog as unknown as NorteLogger
+      expect(logger.bindings).toBeDefined()
+      expect(logger.bindings()).toHaveProperty('requestId')
     })
 
     it('should inject logger with requestId in afterHandler hooks', async () => {
@@ -102,8 +107,9 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedLog).toBeDefined()
-      expect(capturedLog.bindings).toBeDefined()
-      expect(capturedLog.bindings()).toHaveProperty('requestId')
+      const logger = capturedLog as unknown as NorteLogger
+      expect(logger.bindings).toBeDefined()
+      expect(logger.bindings()).toHaveProperty('requestId')
     })
 
     it('should generate unique requestId for each request', async () => {
@@ -117,7 +123,7 @@ describe('Observability', () => {
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
-        requestIds.push(log.bindings().requestId)
+        requestIds.push(log.bindings().requestId as string)
         return [{ id: '1', name: 'Alice' }]
       })
 
@@ -145,7 +151,7 @@ describe('Observability', () => {
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
-        capturedRequestId = log.bindings().requestId
+        capturedRequestId = log.bindings().requestId as string
         return [{ id: '1', name: 'Alice' }]
       })
 
@@ -194,13 +200,15 @@ describe('Observability', () => {
       expect(childBindings).toHaveProperty('requestId')
       expect(childBindings).toHaveProperty('userId', '123')
       expect(childBindings).toHaveProperty('operation', 'list')
-      expect(childBindings.requestId).toBe(parentBindings.requestId)
+      const child = childBindings as unknown as Record<string, unknown>
+      const parent = parentBindings as unknown as Record<string, unknown>
+      expect(child.requestId).toBe(parent.requestId)
     })
   })
 
   describe('Logger Configuration', () => {
     it('should use custom logger configuration', async () => {
-      const customLogger = {
+      const customLogger: { level: 'debug'; name: string } = {
         level: 'debug',
         name: 'custom-api',
       }
@@ -225,7 +233,8 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedLog).toBeDefined()
-      expect(capturedLog?.level).toBe('debug')
+      const logger = capturedLog as unknown as NorteLogger
+      expect(logger.level).toBe('debug')
     })
 
     it('should allow disabling logger', async () => {
@@ -250,7 +259,8 @@ describe('Observability', () => {
 
       // Logger should be a noop logger
       expect(capturedLog).toBeDefined()
-      expect(capturedLog?.level).toBe('silent')
+      const logger = capturedLog as unknown as NorteLogger
+      expect(logger.level).toBe('silent')
     })
   })
 
@@ -282,9 +292,8 @@ describe('Observability', () => {
       expect(capturedBindings).toHaveProperty('requestId')
       // When telemetry is enabled, should have trace_id
       expect(capturedBindings).toHaveProperty('trace_id')
-      expect(typeof (capturedBindings as { trace_id: string }).trace_id).toBe(
-        'string',
-      )
+      const bindings = capturedBindings as unknown as { trace_id: string }
+      expect(typeof bindings.trace_id).toBe('string')
     })
 
     it('should extract traceParent from headers when provided', async () => {
@@ -321,9 +330,8 @@ describe('Observability', () => {
 
       expect(capturedBindings).toHaveProperty('trace_id')
       // Extract trace-id from traceParent (32 hex chars after version-traceId)
-      expect((capturedBindings as { trace_id: string }).trace_id).toBe(
-        '0af7651916cd43dd8448eb211c80319c',
-      )
+      const bindings = capturedBindings as unknown as { trace_id: string }
+      expect(bindings.trace_id).toBe('0af7651916cd43dd8448eb211c80319c')
     })
 
     it('should work without telemetry when not configured', async () => {
