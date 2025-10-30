@@ -1,13 +1,7 @@
 import type { ValidateFunction } from 'ajv'
 import Ajv from 'ajv'
-import type { NorteSchema } from '../router'
 import { NorteError } from '../router'
-
-export interface IValidator {
-  compile(schema: NorteSchema): ValidateFunction
-  validate(validator: ValidateFunction, data: unknown): void
-  getErrorText(validator: ValidateFunction): string
-}
+import type { IValidator, NorteSchema } from '../types'
 
 export class Validator implements IValidator {
   #ajv: Ajv

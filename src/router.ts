@@ -1,7 +1,13 @@
-import type { TSchema } from '@sinclair/typebox'
-import type { NorteLogger, NorteStore } from './types'
-
-export type NorteSchema = TSchema
+import type {
+  AfterHook,
+  BeforeHook,
+  Handler,
+  ListHandler,
+  NorteSchema,
+  NorteStore,
+  RouteOptions,
+  RouterOptions,
+} from './types'
 
 export class NorteError extends Error {
   public code: string
@@ -9,70 +15,6 @@ export class NorteError extends Error {
     super(message)
     this.code = code
   }
-}
-
-export type BeforeHookContext<TStore extends NorteStore = NorteStore> = {
-  request: Request
-  headers: Headers
-  param: Record<string, string>
-  query: Record<string, string>
-  store: TStore
-  log: NorteLogger
-  error: (code: string, msg: string) => NorteError
-}
-
-export type AfterHookContext<TStore extends NorteStore = NorteStore> = {
-  result: unknown
-  response: { status?: number }
-  headers: Headers
-  store: TStore
-  log: NorteLogger
-}
-
-export type HandlerContext<TStore extends NorteStore = NorteStore> = {
-  body: unknown
-  param: Record<string, unknown>
-  query: Record<string, unknown>
-  store: TStore
-  log: NorteLogger
-  request?: Request
-}
-
-export type PaginationContext = {
-  page: number
-  limit: number
-  offset: number
-}
-
-export type BeforeHook<TStore extends NorteStore = NorteStore> = (
-  ctx: BeforeHookContext<TStore>,
-) => TStore | Promise<TStore>
-
-export type AfterHook<TStore extends NorteStore = NorteStore> = (
-  ctx: AfterHookContext<TStore>,
-) => Promise<void> | void
-
-export type Handler<TStore extends NorteStore = NorteStore> = (
-  ctx: HandlerContext<TStore>,
-) => Promise<unknown> | unknown
-
-export type ListHandler<TStore extends NorteStore = NorteStore> = (
-  ctx: HandlerContext<TStore> & { pagination: PaginationContext },
-) => Promise<unknown> | unknown
-
-export type RouterOptions<TStore extends NorteStore = NorteStore> = {
-  schema: NorteSchema
-  version?: number
-  beforeHandler?: BeforeHook<TStore>[]
-  afterHandler?: AfterHook<TStore>[]
-}
-
-export type RouteOptions<TStore extends NorteStore = NorteStore> = {
-  body?: NorteSchema
-  query?: NorteSchema
-  param?: NorteSchema
-  beforeHandler?: BeforeHook<TStore>[]
-  afterHandler?: AfterHook<TStore>[]
 }
 
 export type RouteDefinition<TStore extends NorteStore = NorteStore> = {

@@ -1,22 +1,6 @@
-import type { NorteOptions } from '../norte'
 import type { RouteDefinition } from '../router'
 import { Router } from '../router'
-import type { NorteStore } from '../types'
-
-type OpenAPIRouteMetadata = {
-  method: string
-  path: string
-  summary?: string
-  description?: string
-  tags: string[]
-  operationId: string
-  requestBody?: Record<string, unknown> | undefined
-  parameters?: Array<Record<string, unknown>> | undefined
-  responses: Record<string, Record<string, unknown>>
-  'x-norte-invalidates'?: string[] | undefined
-  'x-norte-domain': string
-  'x-norte-version': number
-}
+import type { NorteOptions, NorteStore, OpenAPIRouteMetadata } from '../types'
 
 export class OpenAPIGenerator {
   #metadata: OpenAPIRouteMetadata[] = []
@@ -185,19 +169,30 @@ export class OpenAPIGenerator {
       fullPath,
     )
 
-    return {
+    const metadata: OpenAPIRouteMetadata = {
       method: method.toLowerCase(),
       path: openApiPath,
       summary: this.#generateSummary(method, domain),
       tags: [domain],
       operationId,
-      requestBody,
-      parameters: parameters.length > 0 ? parameters : undefined,
       responses,
-      'x-norte-invalidates': invalidates,
       'x-norte-domain': domain,
       'x-norte-version': version,
     }
+
+    if (requestBody) {
+      metadata.requestBody = requestBody
+    }
+
+    if (parameters.length > 0) {
+      metadata.parameters = parameters
+    }
+
+    if (invalidates) {
+      metadata['x-norte-invalidates'] = invalidates
+    }
+
+    return metadata
   }
 
   #generateOperationId(method: string, path: string, domain: string): string {

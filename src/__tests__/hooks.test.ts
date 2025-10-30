@@ -1,9 +1,8 @@
 import { Type as t } from '@sinclair/typebox'
 import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
-import type { AfterHook, BeforeHook } from '../router'
 import { NorteError, Router } from '../router'
-import type { NorteStore } from '../types'
+import type { AfterHook, BeforeHook, NorteStore } from '../types'
 
 interface TestStore extends NorteStore {
   userId?: string

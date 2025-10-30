@@ -3,21 +3,10 @@ import { ErrorHandler } from './services/error-handler'
 import { Logger } from './services/logger'
 import { OpenAPIGenerator } from './services/openapi-generator'
 import { PathBuilder } from './services/path-builder'
-import { type CompiledRoute, RouteCompiler } from './services/route-compiler'
+import { RouteCompiler } from './services/route-compiler'
 import { RouteMatcher } from './services/route-matcher'
 import { Validator } from './services/validator'
-import type { LoggerOptions, NorteStore, TelemetryOptions } from './types'
-
-export type NorteOptions = {
-  logger?: LoggerOptions
-  telemetry?: TelemetryOptions
-  openapi?: {
-    title?: string
-    version?: string
-    description?: string
-    servers?: Array<{ url: string; description?: string }>
-  }
-}
+import type { CompiledRoute, NorteOptions, NorteStore } from './types'
 
 export class Norte<TStore extends NorteStore = NorteStore> {
   #compiledRoutes: Map<string, CompiledRoute[]> = new Map()

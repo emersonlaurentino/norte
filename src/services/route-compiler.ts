@@ -1,26 +1,20 @@
 import type { ValidateFunction } from 'ajv'
+import type { RouteDefinition } from '../router'
+import { NorteError, Router } from '../router'
 import type {
   AfterHook,
   BeforeHook,
+  CompiledRoute,
   Handler,
+  NorteLogger,
   NorteSchema,
-  RouteDefinition,
-} from '../router'
-import { NorteError, Router } from '../router'
-import type { NorteLogger, NorteStore } from '../types'
+  NorteStore,
+} from '../types'
 import type { ErrorHandler } from './error-handler'
 import type { Logger } from './logger'
 import type { PathBuilder } from './path-builder'
 import type { RouteMatcher } from './route-matcher'
 import type { Validator } from './validator'
-
-export type CompiledRoute = {
-  pathPattern: string
-  routeParts: string[]
-  paramNames: string[]
-  defaultStatus: number
-  execute: (req: Request, params: Record<string, string>) => Promise<Response>
-}
 
 export class RouteCompiler {
   #validator: Validator
