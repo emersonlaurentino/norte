@@ -346,13 +346,31 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         }
 
         // 3. Execute handler
-        const result = await handler({
+        let handlerContext: any = {
           body: bodyData,
           param,
           query,
           store,
           log,
-        })
+        }
+
+        // Para .list(), adicionar contexto de paginação
+        if (isListMethod) {
+          const page = Number((query as any).page) || 1
+          const limit = Number((query as any).limit) || 10
+          const offset = (page - 1) * limit
+
+          handlerContext = {
+            ...handlerContext,
+            pagination: {
+              page,
+              limit,
+              offset,
+            },
+          }
+        }
+
+        const result = await handler(handlerContext)
 
         // 3.1. Validate response
         if (!(result instanceof Response)) {
