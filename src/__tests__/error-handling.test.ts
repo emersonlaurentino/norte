@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it, vi } from 'vitest'
 import { Norte } from '../norte'
-import { Router, NorteError } from '../router'
+import { NorteError, Router } from '../router'
+import type { NorteStore } from '../types'
 
 describe('Error Handling', () => {
   it('should handle NorteError with NOT_FOUND', async () => {
@@ -132,7 +133,10 @@ describe('Error Handling', () => {
 
     const usersRouter = new Router('users', { schema: userSchema })
     usersRouter.list({}, async () => {
-      throw new NorteError('INTERNAL_SERVER_ERROR', 'Database connection failed')
+      throw new NorteError(
+        'INTERNAL_SERVER_ERROR',
+        'Database connection failed',
+      )
     })
 
     app.register(usersRouter)
@@ -174,6 +178,11 @@ describe('Error Handling', () => {
   })
 
   it('should handle unexpected errors as INTERNAL_SERVER_ERROR', async () => {
+    // Mock console.error to avoid polluting test output
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+
     const app = new Norte()
     const userSchema = t.Object({
       id: t.String(),
@@ -196,6 +205,8 @@ describe('Error Handling', () => {
       error: 'INTERNAL_SERVER_ERROR',
       message: 'An unexpected error occurred',
     })
+
+    consoleErrorSpy.mockRestore()
   })
 
   it('should handle errors thrown in beforeHandler', async () => {
@@ -205,7 +216,7 @@ describe('Error Handling', () => {
       name: t.String(),
     })
 
-    const usersRouter = new Router('users', {
+    const usersRouter = new Router<NorteStore>('users', {
       schema: userSchema,
       beforeHandler: [
         async () => {
@@ -361,6 +372,11 @@ describe('Error Handling', () => {
   })
 
   it('should handle errors in afterHandler gracefully', async () => {
+    // Mock console.error to avoid polluting test output
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+
     const app = new Norte()
     const userSchema = t.Object({
       id: t.String(),
@@ -388,6 +404,8 @@ describe('Error Handling', () => {
     expect(res.status).toBe(500)
     const data = await res.json()
     expect(data.error).toBe('INTERNAL_SERVER_ERROR')
+
+    consoleErrorSpy.mockRestore()
   })
 
   it('should handle empty domain error', () => {
@@ -402,8 +420,8 @@ describe('Error Handling', () => {
     })
 
     expect(() => {
+      // biome-ignore lint/suspicious/noExplicitAny: any
       new Router(parentRouter, 'child', undefined as any)
     }).toThrow('RouterOptions with schema is required.')
   })
 })
-

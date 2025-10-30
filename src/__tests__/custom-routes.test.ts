@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
@@ -109,15 +109,10 @@ describe('Custom Routes', () => {
     })
 
     const usersRouter = new Router('users', { schema: userSchema })
-    usersRouter.custom(
-      'POST',
-      '/:userId/activate',
-      {},
-      async ({ param }) => {
-        const userId = (param as { userId: string }).userId
-        return { id: userId, name: 'User activated' }
-      },
-    )
+    usersRouter.custom('POST', '/:userId/activate', {}, async ({ param }) => {
+      const userId = (param as { userId: string }).userId
+      return { id: userId, name: 'User activated' }
+    })
 
     app.register(usersRouter)
 
@@ -295,7 +290,10 @@ describe('Custom Routes', () => {
       async ({ param, body }) => {
         const storeId = (param as { storeId: string }).storeId
         const count = (body as { count: number }).count
-        return { id: 'import', name: `Imported ${count} products to store ${storeId}` }
+        return {
+          id: 'import',
+          name: `Imported ${count} products to store ${storeId}`,
+        }
       },
     )
 
@@ -310,7 +308,10 @@ describe('Custom Routes', () => {
 
     expect(res.status).toBe(201) // POST defaults to 201
     const data = await res.json()
-    expect(data).toEqual({ id: 'import', name: 'Imported 10 products to store s1' })
+    expect(data).toEqual({
+      id: 'import',
+      name: 'Imported 10 products to store s1',
+    })
   })
 
   it('should handle .custom() with multiple path segments', async () => {
@@ -321,14 +322,9 @@ describe('Custom Routes', () => {
     })
 
     const usersRouter = new Router('users', { schema: userSchema })
-    usersRouter.custom(
-      'GET',
-      '/stats/summary',
-      {},
-      async () => {
-        return { id: 'stats', name: 'User statistics summary' }
-      },
-    )
+    usersRouter.custom('GET', '/stats/summary', {}, async () => {
+      return { id: 'stats', name: 'User statistics summary' }
+    })
 
     app.register(usersRouter)
 
@@ -364,4 +360,3 @@ describe('Custom Routes', () => {
     expect(data).toEqual({ id: 'ping', name: 'pong' })
   })
 })
-

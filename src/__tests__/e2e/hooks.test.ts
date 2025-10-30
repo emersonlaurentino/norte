@@ -1,9 +1,9 @@
 import { Type as t } from '@sinclair/typebox'
 import { describe, expect, it } from 'vitest'
-import { Norte } from '../norte'
-import type { AfterHook, BeforeHook } from '../router'
-import { NorteError, Router } from '../router'
-import type { NorteStore } from '../types'
+import { Norte } from '../../norte'
+import type { AfterHook, BeforeHook } from '../../router'
+import { NorteError, Router } from '../../router'
+import type { NorteStore } from '../../types'
 
 interface TestStore extends NorteStore {
   userId?: string
@@ -11,7 +11,7 @@ interface TestStore extends NorteStore {
   requestId?: string
 }
 
-describe('Hooks (beforeHandler and afterHandler)', () => {
+describe('E2E: Hooks (beforeHandler and afterHandler)', () => {
   it('should execute beforeHandler and populate store', async () => {
     const app = new Norte<TestStore>()
     const userSchema = t.Object({

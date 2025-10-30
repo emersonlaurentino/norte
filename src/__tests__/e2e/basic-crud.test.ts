@@ -1,9 +1,9 @@
 import { Type as t } from '@sinclair/typebox'
 import { describe, expect, it } from 'vitest'
-import { Norte } from '../norte'
-import { Router } from '../router'
+import { Norte } from '../../norte'
+import { Router } from '../../router'
 
-describe('Basic CRUD Operations', () => {
+describe('E2E: Basic CRUD Operations', () => {
   it('should handle .list() route', async () => {
     const app = new Norte()
     const userSchema = t.Object({

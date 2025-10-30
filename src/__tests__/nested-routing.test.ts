@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
@@ -197,7 +197,11 @@ describe('Nested Routing', () => {
     const res = await app.fetch(req)
     expect(res.status).toBe(201)
     const data = await res.json()
-    expect(data).toEqual({ id: 'new-product', name: 'New Product', storeId: 's1' })
+    expect(data).toEqual({
+      id: 'new-product',
+      name: 'New Product',
+      storeId: 's1',
+    })
   })
 
   it('should handle .update() on nested router', async () => {
@@ -346,9 +350,7 @@ describe('Nested Routing', () => {
     const res = await app.fetch(req)
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data).toEqual([
-      { id: 'emp1', name: 'Employee of company comp123' },
-    ])
+    expect(data).toEqual([{ id: 'emp1', name: 'Employee of company comp123' }])
   })
 
   it('should validate parent parameters in nested routes', async () => {
@@ -400,4 +402,3 @@ describe('Nested Routing', () => {
     expect(data2.error).toBe('INVALID_INPUT')
   })
 })
-

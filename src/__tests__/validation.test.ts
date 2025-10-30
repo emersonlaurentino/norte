@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
@@ -275,4 +275,3 @@ describe('Schema Validation', () => {
     expect(data.message).toContain('Invalid JSON body')
   })
 })
-

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
@@ -510,4 +510,3 @@ describe('Response Schema Validation', () => {
     expect(data).toEqual([])
   })
 })
-
