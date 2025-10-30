@@ -2,6 +2,13 @@ import type { RouteDefinition } from '../router'
 import { Router } from '../router'
 import type { NorteOptions, NorteStore, OpenAPIRouteMetadata } from '../types'
 
+interface TypeBoxObjectSchema {
+  type?: string
+  properties?: Record<string, unknown>
+  required?: string[]
+  [key: string]: unknown
+}
+
 export class OpenAPIGenerator {
   #metadata: OpenAPIRouteMetadata[] = []
   #cachedDocument: Record<string, unknown> | null = null
@@ -111,19 +118,21 @@ export class OpenAPIGenerator {
     const parameters: Array<Record<string, unknown>> = []
 
     if (options.query) {
-      const queryProps = (options.query as any).properties || {}
+      const querySchema = options.query as TypeBoxObjectSchema
+      const queryProps = querySchema.properties || {}
       for (const [name, schema] of Object.entries(queryProps)) {
         parameters.push({
           name,
           in: 'query',
-          required: (options.query as any).required?.includes(name) ?? false,
+          required: querySchema.required?.includes(name) ?? false,
           schema,
         })
       }
     }
 
     if (options.param) {
-      const paramProps = (options.param as any).properties || {}
+      const paramSchema = options.param as TypeBoxObjectSchema
+      const paramProps = paramSchema.properties || {}
       for (const [name, schema] of Object.entries(paramProps)) {
         parameters.push({
           name,

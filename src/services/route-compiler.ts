@@ -6,9 +6,11 @@ import type {
   BeforeHook,
   CompiledRoute,
   Handler,
+  HandlerContext,
   NorteLogger,
   NorteSchema,
   NorteStore,
+  PaginationContext,
 } from '../types'
 import type { ErrorHandler } from './error-handler'
 import type { Logger } from './logger'
@@ -219,7 +221,7 @@ export class RouteCompiler {
           }
         }
 
-        let handlerContext: any = {
+        let handlerContext: HandlerContext<TStore> = {
           body: bodyData,
           param,
           query,
@@ -229,18 +231,21 @@ export class RouteCompiler {
         }
 
         if (isListMethod) {
-          const page = Number((query as any).page) || 1
-          const limit = Number((query as any).limit) || 10
+          const queryRecord = query as Record<string, unknown>
+          const page = Number(queryRecord.page) || 1
+          const limit = Number(queryRecord.limit) || 10
           const offset = (page - 1) * limit
+
+          const pagination: PaginationContext = {
+            page,
+            limit,
+            offset,
+          }
 
           handlerContext = {
             ...handlerContext,
-            pagination: {
-              page,
-              limit,
-              offset,
-            },
-          }
+            pagination,
+          } as HandlerContext<TStore> & { pagination: PaginationContext }
         }
 
         const result = await handler(handlerContext)

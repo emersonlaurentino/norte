@@ -1,5 +1,13 @@
 import type { ParsedOpenAPI, ParsedOperation } from './openapi-parser'
 
+interface JSONSchema {
+  type?: string
+  properties?: Record<string, unknown>
+  required?: string[]
+  items?: unknown
+  [key: string]: unknown
+}
+
 export function generateTanStackQuery(
   openapi: ParsedOpenAPI,
 ): Record<string, string> {
@@ -349,7 +357,7 @@ function generateFetchFunction(op: ParsedOperation, baseUrl: string): string {
   func += `  const url = \`${baseUrl}${urlPath}\``
 
   if (queryParams.length > 0) {
-    func += ` + (query ? '?' + new URLSearchParams(query as any).toString() : '')`
+    func += ` + (query ? '?' + new URLSearchParams(query as Record<string, string>).toString() : '')`
   }
 
   func += '\n\n'
@@ -387,7 +395,7 @@ function schemaToType(schema: unknown): string {
     return 'unknown'
   }
 
-  const s = schema as any
+  const s = schema as JSONSchema
 
   if (s.type === 'array') {
     return `Array<${schemaToType(s.items)}>`
@@ -422,7 +430,7 @@ function getTypeFromSchema(schema: unknown): string {
     return 'string'
   }
 
-  const s = schema as any
+  const s = schema as JSONSchema
 
   switch (s.type) {
     case 'string':
