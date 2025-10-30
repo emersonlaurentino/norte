@@ -14,33 +14,30 @@ export class NorteError extends Error {
 export type BeforeHookContext<TStore extends NorteStore = NorteStore> = {
   request: Request
   headers: Headers
-  param: Record<string, string> // Params *brutos* (strings)
-  query: Record<string, string> // Query *bruta* (strings)
-  store: TStore // O "saco" para preencher
+  param: Record<string, string>
+  query: Record<string, string>
+  store: TStore
   log: NorteLogger
   error: (code: string, msg: string) => NorteError
 }
 
-/** Contexto injetado no 'afterHandler' (Camada de Protocolo) */
 export type AfterHookContext<TStore extends NorteStore = NorteStore> = {
-  result: unknown // O que o handler retornou ou lançou
-  response: { status?: number } // O estado da resposta para mutar
-  headers: Headers // Headers da resposta para mutar
+  result: unknown
+  response: { status?: number }
+  headers: Headers
   store: TStore
   log: NorteLogger
 }
 
-/** Contexto injetado no 'handler' (Camada de Negócio Pura) */
 export type HandlerContext<TStore extends NorteStore = NorteStore> = {
   body: unknown
   param: Record<string, unknown>
   query: Record<string, unknown>
   store: TStore
   log: NorteLogger
-  request?: Request // Acesso ao request bruto (útil para .custom())
+  request?: Request
 }
 
-/** Contexto de paginação injetado nos 'handlers' .list() */
 export type PaginationContext = {
   page: number
   limit: number
@@ -64,8 +61,8 @@ export type ListHandler<TStore extends NorteStore = NorteStore> = (
 ) => Promise<unknown> | unknown
 
 export type RouterOptions<TStore extends NorteStore = NorteStore> = {
-  schema: NorteSchema // Schema de response do domínio (obrigatório)
-  version?: number // Versão da API (padrão: 1)
+  schema: NorteSchema
+  version?: number
   beforeHandler?: BeforeHook<TStore>[]
   afterHandler?: AfterHook<TStore>[]
 }
@@ -190,7 +187,6 @@ export class Router<TStore extends NorteStore = NorteStore> {
       : `${this.#domain}Id`
   }
 
-  // Acesso interno: protegido por token via método estático
   public static getInternals<TStore extends NorteStore = NorteStore>(
     router: Router<TStore>,
   ): {

@@ -1,45 +1,12 @@
-import type { ValidateFunction } from 'ajv'
-import Ajv from 'ajv'
-import pino from 'pino'
-import type {
-  AfterHook,
-  BeforeHook,
-  Handler,
-  NorteSchema,
-  RouteDefinition,
-} from './router'
-import { NorteError, Router } from './router'
-import type {
-  LoggerOptions,
-  NorteLogger,
-  NorteStore,
-  TelemetryOptions,
-} from './types'
-
-// Compiled route structure - optimized for runtime execution
-type CompiledRoute = {
-  pathPattern: string // e.g., "/users/:userId"
-  routeParts: string[] // Pre-split path parts for fast matching
-  paramNames: string[] // e.g., ["userId"]
-  defaultStatus: number // 200, 201, 204, etc
-  execute: (req: Request, params: Record<string, string>) => Promise<Response> // The "super function"
-}
-
-// OpenAPI metadata stored during compilation
-type OpenAPIRouteMetadata = {
-  method: string
-  path: string
-  summary?: string
-  description?: string
-  tags: string[]
-  operationId: string
-  requestBody?: Record<string, unknown> | undefined
-  parameters?: Array<Record<string, unknown>> | undefined
-  responses: Record<string, Record<string, unknown>>
-  'x-norte-invalidates'?: string[] | undefined // Cache invalidation hints
-  'x-norte-domain': string
-  'x-norte-version': number
-}
+import { Router } from './router'
+import { ErrorHandler } from './services/error-handler'
+import { Logger } from './services/logger'
+import { OpenAPIGenerator } from './services/openapi-generator'
+import { PathBuilder } from './services/path-builder'
+import { type CompiledRoute, RouteCompiler } from './services/route-compiler'
+import { RouteMatcher } from './services/route-matcher'
+import { Validator } from './services/validator'
+import type { LoggerOptions, NorteStore, TelemetryOptions } from './types'
 
 export type NorteOptions = {
   logger?: LoggerOptions
@@ -53,118 +20,38 @@ export type NorteOptions = {
 }
 
 export class Norte<TStore extends NorteStore = NorteStore> {
-  #compiledRoutes: Map<string, CompiledRoute[]> = new Map() // Key: HTTP method
-  #openApiMetadata: OpenAPIRouteMetadata[] = []
-  #openApiDocument: Record<string, unknown> | null = null // Cached OpenAPI document
-  #ajv: Ajv
-  #baseLogger: pino.Logger
-  #telemetryEnabled: boolean
-  #telemetryServiceName: string
-  #openapiOptions: NorteOptions['openapi']
+  #compiledRoutes: Map<string, CompiledRoute[]> = new Map()
+
+  #logger: Logger
+  #validator: Validator
+  #routeMatcher: RouteMatcher
+  #pathBuilder: PathBuilder
+  #openApiGenerator: OpenAPIGenerator
+  #errorHandler: ErrorHandler
+  #routeCompiler: RouteCompiler
 
   constructor(options: NorteOptions = {}) {
-    this.#ajv = new Ajv({
-      coerceTypes: true,
-      useDefaults: true,
-      removeAdditional: true,
-    })
+    this.#logger = new Logger(options.logger, options.telemetry)
+    this.#validator = new Validator()
+    this.#routeMatcher = new RouteMatcher()
+    this.#pathBuilder = new PathBuilder()
+    this.#openApiGenerator = new OpenAPIGenerator(options.openapi)
+    this.#errorHandler = new ErrorHandler()
 
-    // Initialize telemetry settings
-    this.#telemetryEnabled = options.telemetry?.enabled ?? false
-    this.#telemetryServiceName = options.telemetry?.serviceName ?? 'norte-api'
-
-    // Initialize OpenAPI options
-    this.#openapiOptions = options.openapi
-
-    // Initialize base logger
-    this.#baseLogger = this.#initializeLogger(options.logger)
-  }
-
-  #initializeLogger(loggerOptions?: LoggerOptions): pino.Logger {
-    // Disabled logger
-    if (loggerOptions === false) {
-      return pino({ level: 'silent' })
-    }
-
-    // Custom configuration
-    if (typeof loggerOptions === 'object') {
-      return pino(loggerOptions)
-    }
-
-    // Default logger configuration
-    const isProduction = process.env.NODE_ENV === 'production'
-    const baseConfig: any = {
-      level: isProduction ? 'info' : 'debug',
-    }
-
-    // Add pretty print in development
-    if (!isProduction) {
-      baseConfig.transport = {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss.l',
-          ignore: 'pid,hostname',
-        },
-      }
-    }
-
-    return pino(baseConfig)
-  }
-
-  #generateRequestId(req: Request): string {
-    // Check if X-Request-ID header exists
-    const headerRequestId = req.headers.get('X-Request-ID')
-    if (headerRequestId) {
-      return headerRequestId
-    }
-
-    // Generate UUID v4
-    return crypto.randomUUID()
-  }
-
-  #extractTraceId(req: Request): string | undefined {
-    if (!this.#telemetryEnabled) {
-      return undefined
-    }
-
-    // Extract trace-id from W3C Trace Context (traceparent header)
-    // Format: version-trace-id-parent-id-flags
-    // Example: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
-    const traceparent = req.headers.get('traceparent')
-    if (traceparent) {
-      const parts = traceparent.split('-')
-      if (parts.length >= 2) {
-        return parts[1] // trace-id is the second part
-      }
-    }
-
-    // Generate new trace-id if telemetry is enabled but no traceparent header
-    return crypto.randomUUID().replace(/-/g, '')
-  }
-
-  #createLogger(req: Request): NorteLogger {
-    const requestId = this.#generateRequestId(req)
-    const bindings: Record<string, unknown> = { requestId }
-
-    // Add telemetry bindings if enabled
-    if (this.#telemetryEnabled) {
-      const trace_id = this.#extractTraceId(req)
-      if (trace_id) {
-        bindings.trace_id = trace_id
-      }
-      bindings.service = this.#telemetryServiceName
-    }
-
-    return this.#baseLogger.child(bindings) as NorteLogger
+    this.#routeCompiler = new RouteCompiler(
+      this.#validator,
+      this.#pathBuilder,
+      this.#routeMatcher,
+      this.#logger,
+      this.#errorHandler,
+    )
   }
 
   public register(router: Router<TStore>) {
     const { definitions } = Router.getInternals(router)
 
-    // Compile each route definition
     for (const definition of definitions) {
-      const compiledRoute = this.#compileRoute(definition)
+      const compiledRoute = this.#routeCompiler.compile(definition)
       const method = definition.method.toUpperCase()
 
       if (!this.#compiledRoutes.has(method)) {
@@ -175,709 +62,11 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         routes.push(compiledRoute)
       }
 
-      // Collect OpenAPI metadata during compilation
-      const metadata = this.#extractOpenAPIMetadata(
+      this.#openApiGenerator.addRouteMetadata(
         definition,
         compiledRoute.pathPattern,
       )
-      this.#openApiMetadata.push(metadata)
     }
-
-    // Invalidate cached OpenAPI document
-    this.#openApiDocument = null
-  }
-
-  #compileRoute(definition: RouteDefinition<TStore>): CompiledRoute {
-    const { method, path, handler, options, router } = definition
-
-    // 1. Build full path by walking parent chain
-    const fullPath = this.#buildFullPath(router, path)
-
-    // 2. Split path into parts and extract parameter names
-    const { routeParts, paramNames } = this.#splitPath(fullPath)
-
-    // 3. Pre-compile schemas
-    const validators = this.#compileSchemas(options)
-
-    // 4. Compile response schema from router (if defined)
-    const routerOptions = Router.getInternals(router).options
-    const responseValidator = this.#compileResponseSchema(
-      method,
-      routerOptions.schema,
-    )
-
-    // 5. Merge hooks from router and route level
-    const beforeHooks = this.#mergeHooks(
-      routerOptions.beforeHandler,
-      options.beforeHandler,
-    )
-    const afterHooks = this.#mergeHooks(
-      routerOptions.afterHandler,
-      options.afterHandler,
-    )
-
-    // 6. Determine default status based on method
-    const defaultStatus = this.#getDefaultStatus(method)
-
-    // 7. Create the "super function" - inlines entire lifecycle
-    const execute = this.#createSuperFunction({
-      method,
-      path,
-      paramNames,
-      validators,
-      responseValidator,
-      beforeHooks,
-      handler,
-      afterHooks,
-      defaultStatus,
-    })
-
-    return {
-      pathPattern: fullPath,
-      routeParts,
-      paramNames,
-      defaultStatus,
-      execute,
-    }
-  }
-
-  #buildFullPath(router: Router<TStore>, path: string): string {
-    const parts: string[] = []
-
-    // Walk up the parent chain to build the full path
-    let currentRouter: Router<TStore> | null = router
-    let version: number | undefined
-
-    while (currentRouter) {
-      const internals = Router.getInternals(currentRouter)
-      const { domain, parent, options } = internals
-
-      // Capture version from the root router (top-level)
-      if (!parent && options.version !== undefined) {
-        version = options.version
-      }
-
-      // Add the domain to the path
-      parts.unshift(domain)
-
-      // If there's a parent, add the PARENT's domain ID parameter
-      if (parent) {
-        const parentDomain = Router.getInternals(parent).domain
-        const parentDomainId = parentDomain.endsWith('s')
-          ? `${parentDomain.slice(0, -1)}Id`
-          : `${parentDomain}Id`
-        parts.unshift(`:${parentDomainId}`)
-      }
-
-      currentRouter = parent as Router<TStore> | null
-    }
-
-    // Add version prefix (default to 1 if not specified)
-    const versionPrefix = `v${version ?? 1}`
-    parts.unshift(versionPrefix)
-
-    // Build the path: /v{version}/domain or /v{version}/parent/:parentId/domain
-    let fullPath = `/${parts.join('/')}`
-
-    // Append the route-specific path
-    if (path) {
-      fullPath += path
-    }
-
-    return fullPath
-  }
-
-  #splitPath(path: string): {
-    routeParts: string[]
-    paramNames: string[]
-  } {
-    const paramNames: string[] = []
-    const routeParts = path.split('/').filter(Boolean)
-
-    // Extract parameter names
-    for (const part of routeParts) {
-      if (part.charCodeAt(0) === 58) {
-        // 58 = ':'
-        paramNames.push(part.slice(1))
-      }
-    }
-
-    return { routeParts, paramNames }
-  }
-
-  #match(
-    routeParts: string[],
-    pathParts: string[],
-    paramNames: string[],
-  ): Record<string, string> | null {
-    // Route and path must have same number of parts
-    if (routeParts.length !== pathParts.length) {
-      return null
-    }
-
-    const params: Record<string, string> = {}
-    let paramIdx = 0
-
-    for (let i = 0; i < routeParts.length; i++) {
-      const routePart = routeParts[i]
-      const pathPart = pathParts[i]
-
-      if (!routePart || !pathPart) {
-        return null
-      }
-
-      if (routePart.charCodeAt(0) === 58) {
-        // 58 = ':'
-        // É um parâmetro, capturar
-        const paramName = paramNames[paramIdx++]
-        if (paramName) {
-          params[paramName] = pathPart
-        }
-      } else if (routePart !== pathPart) {
-        // Parte estática não bateu
-        return null
-      }
-    }
-
-    return params
-  }
-
-  #compileSchemas(options: RouteDefinition<TStore>['options']): {
-    body?: ValidateFunction | undefined
-    query?: ValidateFunction | undefined
-    param?: ValidateFunction | undefined
-  } {
-    return {
-      body: options.body ? this.#ajv.compile(options.body) : undefined,
-      query: options.query ? this.#ajv.compile(options.query) : undefined,
-      param: options.param ? this.#ajv.compile(options.param) : undefined,
-    }
-  }
-
-  #compileResponseSchema(
-    method: string,
-    schema: NorteSchema,
-  ): ValidateFunction {
-    // Para GET / (list), valida como array do schema
-    if (method.toUpperCase() === 'GET') {
-      // Se o path termina com um parâmetro (e.g., /:userId), é um .read()
-      // Caso contrário, é um .list() e precisa ser array
-      // Vamos verificar isso no createSuperFunction baseado no path
-      // Por enquanto, vamos retornar o schema compilado direto
-      return this.#ajv.compile(schema)
-    }
-
-    // Para outros métodos (POST/PATCH), valida o schema direto
-    return this.#ajv.compile(schema)
-  }
-
-  #mergeHooks<T>(routerHooks?: T[], routeHooks?: T[]): T[] {
-    return [...(routerHooks || []), ...(routeHooks || [])]
-  }
-
-  #getDefaultStatus(method: string): number {
-    switch (method.toUpperCase()) {
-      case 'POST':
-        return 201
-      case 'DELETE':
-        return 204
-      default:
-        return 200
-    }
-  }
-
-  #createSuperFunction(config: {
-    method: string
-    path: string
-    paramNames: string[]
-    validators: {
-      body?: ValidateFunction | undefined
-      query?: ValidateFunction | undefined
-      param?: ValidateFunction | undefined
-    }
-    responseValidator: ValidateFunction
-    beforeHooks: BeforeHook<TStore>[]
-    handler: Handler<TStore>
-    afterHooks: AfterHook<TStore>[]
-    defaultStatus: number
-  }): (req: Request, params: Record<string, string>) => Promise<Response> {
-    const {
-      method,
-      path,
-      validators,
-      responseValidator,
-      beforeHooks,
-      handler,
-      afterHooks,
-      defaultStatus,
-    } = config
-
-    // Determina se é um .list() - GET sem parâmetro na rota
-    const isListMethod = method.toUpperCase() === 'GET' && path === ''
-
-    // This is the "super function" - handles everything for this route
-    return async (
-      req: Request,
-      params: Record<string, string>,
-    ): Promise<Response> => {
-      try {
-        // Create logger with requestId and telemetry bindings
-        const log: NorteLogger = this.#createLogger(req)
-
-        // Parse URL
-        const url = new URL(req.url)
-
-        // Params are passed in from the route match
-        const param = params
-
-        // Extract query
-        const query: Record<string, string> = {}
-        for (const [key, value] of url.searchParams.entries()) {
-          query[key] = value
-        }
-
-        // Parse body if present
-        let bodyData: unknown
-        const contentType = req.headers.get('content-type')
-        if (contentType?.includes('application/json')) {
-          try {
-            bodyData = await req.json()
-          } catch {
-            throw new NorteError('INVALID_INPUT', 'Invalid JSON body')
-          }
-        }
-
-        // Initialize store
-        let store = {} as TStore
-
-        // Helper to create NorteError
-        const error = (code: string, msg: string) => new NorteError(code, msg)
-
-        // 1. Execute beforeHandler hooks
-        for (const hook of beforeHooks) {
-          store = await hook({
-            request: req,
-            headers: req.headers,
-            param,
-            query,
-            store,
-            log,
-            error,
-          })
-        }
-
-        // 2. Validate body, query, param
-        if (validators.body && bodyData !== undefined) {
-          if (!validators.body(bodyData)) {
-            throw new NorteError(
-              'INVALID_INPUT',
-              `Body validation failed: ${this.#ajv.errorsText(validators.body.errors)}`,
-            )
-          }
-        }
-
-        if (validators.query) {
-          if (!validators.query(query)) {
-            throw new NorteError(
-              'INVALID_INPUT',
-              `Query validation failed: ${this.#ajv.errorsText(validators.query.errors)}`,
-            )
-          }
-        }
-
-        if (validators.param) {
-          if (!validators.param(param)) {
-            throw new NorteError(
-              'INVALID_INPUT',
-              `Param validation failed: ${this.#ajv.errorsText(validators.param.errors)}`,
-            )
-          }
-        }
-
-        // 3. Execute handler
-        let handlerContext: any = {
-          body: bodyData,
-          param,
-          query,
-          store,
-          log,
-          request: req,
-        }
-
-        // Para .list(), adicionar contexto de paginação
-        if (isListMethod) {
-          const page = Number((query as any).page) || 1
-          const limit = Number((query as any).limit) || 10
-          const offset = (page - 1) * limit
-
-          handlerContext = {
-            ...handlerContext,
-            pagination: {
-              page,
-              limit,
-              offset,
-            },
-          }
-        }
-
-        const result = await handler(handlerContext)
-
-        // 3.1. Validate response
-        if (!(result instanceof Response)) {
-          // Para .list(), valida cada item do array
-          if (isListMethod) {
-            if (!Array.isArray(result)) {
-              throw new NorteError(
-                'INVALID_OUTPUT',
-                'List method must return an array',
-              )
-            }
-            // Valida cada item do array
-            for (let i = 0; i < result.length; i++) {
-              const item = result[i]
-              if (!responseValidator(item)) {
-                throw new NorteError(
-                  'INVALID_OUTPUT',
-                  `Response validation failed for item ${i}: ${this.#ajv.errorsText(responseValidator.errors)}`,
-                )
-              }
-            }
-          } else {
-            // Para outros métodos, valida o objeto direto
-            if (!responseValidator(result)) {
-              throw new NorteError(
-                'INVALID_OUTPUT',
-                `Response validation failed: ${this.#ajv.errorsText(responseValidator.errors)}`,
-              )
-            }
-          }
-        }
-
-        // 4. Execute afterHandler hooks
-        const responseHeaders = new Headers()
-        const responseState = { status: defaultStatus }
-
-        for (const hook of afterHooks) {
-          await hook({
-            result,
-            response: responseState,
-            headers: responseHeaders,
-            store,
-            log,
-          })
-        }
-
-        // 5. Format response
-        // If handler returned a Response object, use it directly
-        if (result instanceof Response) {
-          return result
-        }
-
-        // For DELETE with 204, no body
-        if (defaultStatus === 204) {
-          return new Response(null, {
-            status: responseState.status || 204,
-            headers: responseHeaders,
-          })
-        }
-
-        // Otherwise, serialize as JSON
-        responseHeaders.set('content-type', 'application/json')
-        return new Response(JSON.stringify(result), {
-          status: responseState.status || defaultStatus,
-          headers: responseHeaders,
-        })
-      } catch (err) {
-        // Handle errors
-        return this.#handleError(err)
-      }
-    }
-  }
-
-  #handleError(err: unknown): Response {
-    if (err instanceof NorteError) {
-      const statusCode = this.#errorCodeToStatus(err.code)
-      return new Response(
-        JSON.stringify({
-          error: err.code,
-          message: err.message,
-        }),
-        {
-          status: statusCode,
-          headers: { 'content-type': 'application/json' },
-        },
-      )
-    }
-
-    // Unexpected error
-    console.error('Unexpected error:', err)
-    return new Response(
-      JSON.stringify({
-        error: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred',
-      }),
-      {
-        status: 500,
-        headers: { 'content-type': 'application/json' },
-      },
-    )
-  }
-
-  #errorCodeToStatus(code: string): number {
-    const statusMap: Record<string, number> = {
-      INVALID_INPUT: 400,
-      INVALID_OUTPUT: 500, // Erro interno - response não conforme com schema
-      UNAUTHORIZED: 401,
-      FORBIDDEN: 403,
-      NOT_FOUND: 404,
-      CONFLICT: 409,
-      INTERNAL_SERVER_ERROR: 500,
-    }
-    return statusMap[code] || 500
-  }
-
-  #extractOpenAPIMetadata(
-    definition: RouteDefinition<TStore>,
-    fullPath: string,
-  ): OpenAPIRouteMetadata {
-    const { method, options, router } = definition
-    const routerInternals = Router.getInternals(router)
-    const { domain, options: routerOptions } = routerInternals
-    const version = routerOptions.version ?? 1
-
-    // Convert path params from :paramName to {paramName}
-    const openApiPath = fullPath.replace(/:(\w+)/g, '{$1}')
-
-    // Generate operation ID
-    const operationId = this.#generateOperationId(method, fullPath, domain)
-
-    // Build request body schema (if present)
-    let requestBody: Record<string, unknown> | undefined
-    if (options.body) {
-      requestBody = {
-        required: true,
-        content: {
-          'application/json': {
-            schema: options.body,
-          },
-        },
-      }
-    }
-
-    // Build parameters (query and path)
-    const parameters: Array<Record<string, unknown>> = []
-
-    if (options.query) {
-      const queryProps = (options.query as any).properties || {}
-      for (const [name, schema] of Object.entries(queryProps)) {
-        parameters.push({
-          name,
-          in: 'query',
-          required: (options.query as any).required?.includes(name) ?? false,
-          schema,
-        })
-      }
-    }
-
-    if (options.param) {
-      const paramProps = (options.param as any).properties || {}
-      for (const [name, schema] of Object.entries(paramProps)) {
-        parameters.push({
-          name,
-          in: 'path',
-          required: true,
-          schema,
-        })
-      }
-    }
-
-    // Determine default status
-    const defaultStatus = this.#getDefaultStatus(method)
-
-    // Build responses
-    const responses: Record<string, Record<string, unknown>> = {}
-
-    if (defaultStatus === 204) {
-      responses['204'] = {
-        description: 'No content',
-      }
-    } else {
-      const isListMethod =
-        method.toUpperCase() === 'GET' && definition.path === ''
-      responses[String(defaultStatus)] = {
-        description: 'Successful response',
-        content: {
-          'application/json': {
-            schema: isListMethod
-              ? {
-                  type: 'array',
-                  items: routerOptions.schema,
-                }
-              : routerOptions.schema,
-          },
-        },
-      }
-    }
-
-    // Add error responses
-    responses['400'] = { description: 'Invalid input' }
-    responses['500'] = { description: 'Internal server error' }
-
-    // Calculate cache invalidation hints
-    const invalidates = this.#calculateInvalidationHints(
-      method,
-      domain,
-      fullPath,
-    )
-
-    return {
-      method: method.toLowerCase(),
-      path: openApiPath,
-      summary: this.#generateSummary(method, domain),
-      tags: [domain],
-      operationId,
-      requestBody,
-      parameters: parameters.length > 0 ? parameters : undefined,
-      responses,
-      'x-norte-invalidates': invalidates,
-      'x-norte-domain': domain,
-      'x-norte-version': version,
-    }
-  }
-
-  #generateOperationId(method: string, path: string, domain: string): string {
-    // e.g., GET /v1/users -> listUsers
-    // e.g., POST /v1/users -> createUser
-    // e.g., GET /v1/users/:userId -> readUser
-
-    // Determine if this is a "read" operation by checking if the path ends with a domain ID parameter
-    const domainId = domain.endsWith('s')
-      ? `${domain.slice(0, -1)}Id`
-      : `${domain}Id`
-    const isReadOperation = path.endsWith(`:${domainId}`)
-
-    const methodMap: Record<string, string> = {
-      GET: isReadOperation ? 'read' : 'list',
-      POST: 'create',
-      PATCH: 'update',
-      DELETE: 'delete',
-    }
-
-    const prefix = methodMap[method.toUpperCase()] || method.toLowerCase()
-    const domainSingular = domain.endsWith('s') ? domain.slice(0, -1) : domain
-
-    return `${prefix}${domainSingular.charAt(0).toUpperCase()}${domainSingular.slice(1)}`
-  }
-
-  #generateSummary(method: string, domain: string): string {
-    const methodMap: Record<string, string> = {
-      GET: 'List',
-      POST: 'Create',
-      PATCH: 'Update',
-      DELETE: 'Delete',
-    }
-
-    const action = methodMap[method.toUpperCase()] || method
-    return `${action} ${domain}`
-  }
-
-  #calculateInvalidationHints(
-    method: string,
-    domain: string,
-    fullPath: string,
-  ): string[] | undefined {
-    const upperMethod = method.toUpperCase()
-
-    // Mutations (POST, PATCH, DELETE) invalidate list queries
-    if (['POST', 'PATCH', 'DELETE'].includes(upperMethod)) {
-      const hints: string[] = []
-
-      // Invalidate the list endpoint for this domain
-      const listPath = fullPath.split('/:')[0] // Remove param part
-      hints.push(`${upperMethod === 'POST' ? 'GET' : upperMethod} ${listPath}`)
-
-      // For nested routes, also invalidate parent lists
-      // e.g., POST /v1/stores/:storeId/products invalidates GET /v1/stores/:storeId/products
-      const pathParts = fullPath.split('/')
-      for (let i = pathParts.length - 1; i >= 0; i--) {
-        if (pathParts[i]?.startsWith(':')) {
-          const parentPath = pathParts.slice(0, i).join('/')
-          if (parentPath.includes(domain)) {
-            hints.push(`GET ${parentPath}`)
-          }
-        }
-      }
-
-      return hints.length > 0 ? hints : undefined
-    }
-
-    return undefined
-  }
-
-  #generateOpenAPIDocument(): Record<string, unknown> {
-    // Return cached document if available
-    if (this.#openApiDocument) {
-      return this.#openApiDocument
-    }
-
-    const paths: Record<string, Record<string, unknown>> = {}
-
-    // Build paths from metadata
-    for (const route of this.#openApiMetadata) {
-      if (!paths[route.path]) {
-        paths[route.path] = {}
-      }
-
-      const pathItem = paths[route.path]
-      if (!pathItem) {
-        continue
-      }
-
-      const operation: Record<string, unknown> = {
-        operationId: route.operationId,
-        summary: route.summary,
-        tags: route.tags,
-        responses: route.responses,
-        'x-norte-invalidates': route['x-norte-invalidates'],
-        'x-norte-domain': route['x-norte-domain'],
-        'x-norte-version': route['x-norte-version'],
-      }
-
-      if (route.requestBody) {
-        operation.requestBody = route.requestBody
-      }
-
-      if (route.parameters) {
-        operation.parameters = route.parameters
-      }
-
-      pathItem[route.method] = operation
-    }
-
-    // Build complete OpenAPI document
-    this.#openApiDocument = {
-      openapi: '3.0.3',
-      info: {
-        title: this.#openapiOptions?.title ?? 'Norte API',
-        version: this.#openapiOptions?.version ?? '1.0.0',
-        description:
-          this.#openapiOptions?.description ??
-          'API generated by Norte Framework',
-      },
-      servers: this.#openapiOptions?.servers ?? [
-        {
-          url: 'http://localhost:3000',
-          description: 'Development server',
-        },
-      ],
-      paths,
-      components: {
-        schemas: {},
-        securitySchemes: {},
-      },
-    }
-
-    return this.#openApiDocument
   }
 
   public fetch = async (req: Request): Promise<Response> => {
@@ -885,55 +74,35 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     const url = new URL(req.url)
     const pathname = url.pathname
 
-    // Special route: Serve OpenAPI document
     if (method === 'GET' && pathname === '/openapi.json') {
-      const openApiDoc = this.#generateOpenAPIDocument()
+      const openApiDoc = this.#openApiGenerator.generateDocument()
       return new Response(JSON.stringify(openApiDoc, null, 2), {
         status: 200,
         headers: {
           'content-type': 'application/json',
-          'cache-control': 'public, max-age=3600', // Cache for 1 hour
+          'cache-control': 'public, max-age=3600',
         },
       })
     }
 
-    // Get routes for this HTTP method
     const routes = this.#compiledRoutes.get(method)
     if (!routes) {
-      return new Response(
-        JSON.stringify({
-          error: 'NOT_FOUND',
-          message: 'Route not found',
-        }),
-        {
-          status: 404,
-          headers: { 'content-type': 'application/json' },
-        },
-      )
+      return this.#errorHandler.createNotFoundResponse()
     }
 
-    // Split pathname into parts
-    const pathParts = pathname.split('/').filter(Boolean)
+    const pathParts = this.#routeMatcher.splitPathname(pathname)
 
-    // Fast matching through routes for this method
     for (const route of routes) {
-      const params = this.#match(route.routeParts, pathParts, route.paramNames)
+      const params = this.#routeMatcher.match(
+        route.routeParts,
+        pathParts,
+        route.paramNames,
+      )
       if (params !== null) {
-        // Match found! Execute
         return await route.execute(req, params)
       }
     }
 
-    // No route matched
-    return new Response(
-      JSON.stringify({
-        error: 'NOT_FOUND',
-        message: 'Route not found',
-      }),
-      {
-        status: 404,
-        headers: { 'content-type': 'application/json' },
-      },
-    )
+    return this.#errorHandler.createNotFoundResponse()
   }
 }
