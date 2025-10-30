@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { Type as t } from '@sinclair/typebox'
+import { describe, expect, it } from 'vitest'
 import { Norte } from '../norte'
 import { Router } from '../router'
 
@@ -132,7 +132,7 @@ describe('Pagination', () => {
         expect(pagination.offset).toBe(100)
 
         // Simulate returning a page of results
-        const results = []
+        const results: Array<{ id: string; name: string }> = []
         for (let i = 0; i < pagination.limit; i++) {
           results.push({
             id: String(pagination.offset + i + 1),
@@ -220,7 +220,7 @@ describe('Pagination', () => {
         const offset = (pageNumber - 1) * pageSize
 
         // Simulate paginated results
-        const results = []
+        const results: Array<{ id: string; name: string }> = []
         for (let i = 0; i < pageSize; i++) {
           results.push({
             id: String(offset + i + 1),
