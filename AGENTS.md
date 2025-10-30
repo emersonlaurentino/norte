@@ -45,3 +45,12 @@ class MyClass {
   #myField: string
 }
 ```
+
+### Observabilidade
+
+- **Logger**: O framework usa Pino para logging estruturado
+- **requestId**: Gerado automaticamente para cada request (ou extraído do header `X-Request-ID`)
+- **Telemetria**: Suporte opcional a OpenTelemetry via configuração
+- **trace_id**: Quando telemetria está habilitada, o `trace_id` é extraído do header `traceparent` (W3C Trace Context)
+- Todos os logs incluem `requestId` automaticamente
+- Hooks e handlers têm acesso ao mesmo logger com contexto compartilhado

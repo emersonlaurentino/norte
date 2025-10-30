@@ -31,10 +31,16 @@ pnpm add norte
 ```typescript
 import { Norte, Router, t, NorteError } from 'norte'
 
-// 1. Create your main app
+// 1. Create your main app with observability
 const app = new Norte({
-  title: 'My API',
-  version: '1.0.0'
+  logger: {
+    level: 'info',
+    name: 'my-api'
+  },
+  telemetry: {
+    enabled: true,
+    serviceName: 'my-api'
+  }
 })
 
 // 2. Define schemas with TypeBox
@@ -376,6 +382,126 @@ const loggingHook: AfterHandleHook = async ({ request, result, log }) => {
     url: request.url,
     status: result instanceof NorteError ? result.statusCode : 200
   })
+}
+```
+
+## 📊 Observability & Logging
+
+Norte includes built-in structured logging with Pino and optional OpenTelemetry integration.
+
+### Structured Logging
+
+Every request automatically gets a unique `requestId` that is injected into all logs:
+
+```typescript
+const app = new Norte({
+  logger: {
+    level: 'info',
+    name: 'my-api'
+  }
+})
+
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.list({}, async ({ log }) => {
+  // Logger has requestId automatically
+  log.info({ action: 'list-users' }, 'Fetching users')
+  // Output: {"requestId":"abc-123","action":"list-users","msg":"Fetching users"}
+  
+  const users = await db.users.findMany()
+  return users
+})
+```
+
+### Logger Features
+
+- **Automatic requestId**: Generated for each request or extracted from `X-Request-ID` header
+- **Child Loggers**: Create contextual loggers with additional bindings
+- **Pino-based**: High-performance JSON logging
+- **Pretty Print**: Automatic in development mode
+
+```typescript
+// Child logger with additional context
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.read({}, async ({ param, log }) => {
+  const childLog = log.child({ userId: param.userId })
+  childLog.info({ action: 'fetch' }, 'Fetching user details')
+  
+  const user = await db.users.findUnique({ id: param.userId })
+  childLog.info({ found: !!user }, 'User fetch completed')
+  
+  return user
+})
+```
+
+### Custom Logger Configuration
+
+```typescript
+// Custom log level and name
+const app = new Norte({
+  logger: {
+    level: 'debug',
+    name: 'my-service',
+    // Any Pino options
+    redact: ['password', 'token']
+  }
+})
+
+// Disable logging
+const app = new Norte({
+  logger: false
+})
+```
+
+### OpenTelemetry Integration
+
+Enable distributed tracing with OpenTelemetry-compatible systems:
+
+```typescript
+const app = new Norte({
+  telemetry: {
+    enabled: true,
+    serviceName: 'api-gateway'
+  }
+})
+```
+
+**When telemetry is enabled:**
+
+- Logs include `trace_id` automatically
+- Extracts trace context from `traceparent` header (W3C Trace Context)
+- Generates new trace IDs for incoming requests without parent
+- All logs are correlated with traces
+
+```typescript
+// With telemetry enabled, logs include trace_id:
+// {"requestId":"abc-123","trace_id":"0af7651916cd43dd8448eb211c80319c","msg":"..."}
+```
+
+**Trace Context Propagation:**
+
+```bash
+# Client sends traceparent header
+curl -H "traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" \
+  https://api.example.com/v1/users
+```
+
+The `trace_id` is automatically extracted and included in all logs for that request, enabling full distributed tracing across services.
+
+### Logger in Hooks
+
+The logger is available in all hooks with the same requestId:
+
+```typescript
+const authHook = async ({ log, headers, error }) => {
+  log.debug({ hasAuth: !!headers.get('authorization') }, 'Checking auth')
+  
+  const token = headers.get('authorization')
+  if (!token) {
+    log.warn('Missing authorization header')
+    throw error('UNAUTHORIZED', 'Missing token')
+  }
+  
+  return { user: await validateToken(token) }
 }
 ```
 

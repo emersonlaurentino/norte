@@ -1,5 +1,6 @@
 import type { ValidateFunction } from 'ajv'
 import Ajv from 'ajv'
+import pino from 'pino'
 import type {
   AfterHook,
   BeforeHook,
@@ -8,7 +9,12 @@ import type {
   RouteDefinition,
 } from './router'
 import { NorteError, Router } from './router'
-import type { NorteLogger, NorteStore } from './types'
+import type {
+  LoggerOptions,
+  NorteLogger,
+  NorteStore,
+  TelemetryOptions,
+} from './types'
 
 // Compiled route structure - optimized for runtime execution
 type CompiledRoute = {
@@ -19,16 +25,110 @@ type CompiledRoute = {
   execute: (req: Request, params: Record<string, string>) => Promise<Response> // The "super function"
 }
 
+export type NorteOptions = {
+  logger?: LoggerOptions
+  telemetry?: TelemetryOptions
+}
+
 export class Norte<TStore extends NorteStore = NorteStore> {
   #compiledRoutes: Map<string, CompiledRoute[]> = new Map() // Key: HTTP method
   #ajv: Ajv
+  #baseLogger: pino.Logger
+  #telemetryEnabled: boolean
+  #telemetryServiceName: string
 
-  constructor() {
+  constructor(options: NorteOptions = {}) {
     this.#ajv = new Ajv({
       coerceTypes: true,
       useDefaults: true,
       removeAdditional: true,
     })
+
+    // Initialize telemetry settings
+    this.#telemetryEnabled = options.telemetry?.enabled ?? false
+    this.#telemetryServiceName = options.telemetry?.serviceName ?? 'norte-api'
+
+    // Initialize base logger
+    this.#baseLogger = this.#initializeLogger(options.logger)
+  }
+
+  #initializeLogger(loggerOptions?: LoggerOptions): pino.Logger {
+    // Disabled logger
+    if (loggerOptions === false) {
+      return pino({ level: 'silent' })
+    }
+
+    // Custom configuration
+    if (typeof loggerOptions === 'object') {
+      return pino(loggerOptions)
+    }
+
+    // Default logger configuration
+    const isProduction = process.env.NODE_ENV === 'production'
+    const baseConfig: any = {
+      level: isProduction ? 'info' : 'debug',
+    }
+
+    // Add pretty print in development
+    if (!isProduction) {
+      baseConfig.transport = {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss.l',
+          ignore: 'pid,hostname',
+        },
+      }
+    }
+
+    return pino(baseConfig)
+  }
+
+  #generateRequestId(req: Request): string {
+    // Check if X-Request-ID header exists
+    const headerRequestId = req.headers.get('X-Request-ID')
+    if (headerRequestId) {
+      return headerRequestId
+    }
+
+    // Generate UUID v4
+    return crypto.randomUUID()
+  }
+
+  #extractTraceId(req: Request): string | undefined {
+    if (!this.#telemetryEnabled) {
+      return undefined
+    }
+
+    // Extract trace-id from W3C Trace Context (traceparent header)
+    // Format: version-trace-id-parent-id-flags
+    // Example: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+    const traceparent = req.headers.get('traceparent')
+    if (traceparent) {
+      const parts = traceparent.split('-')
+      if (parts.length >= 2) {
+        return parts[1] // trace-id is the second part
+      }
+    }
+
+    // Generate new trace-id if telemetry is enabled but no traceparent header
+    return crypto.randomUUID().replace(/-/g, '')
+  }
+
+  #createLogger(req: Request): NorteLogger {
+    const requestId = this.#generateRequestId(req)
+    const bindings: Record<string, unknown> = { requestId }
+
+    // Add telemetry bindings if enabled
+    if (this.#telemetryEnabled) {
+      const trace_id = this.#extractTraceId(req)
+      if (trace_id) {
+        bindings.trace_id = trace_id
+      }
+      bindings.service = this.#telemetryServiceName
+    }
+
+    return this.#baseLogger.child(bindings) as NorteLogger
   }
 
   public register(router: Router<TStore>) {
@@ -283,8 +383,8 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       params: Record<string, string>,
     ): Promise<Response> => {
       try {
-        // Create logger (simple console logger for now)
-        const log: NorteLogger = this.#createLogger()
+        // Create logger with requestId and telemetry bindings
+        const log: NorteLogger = this.#createLogger(req)
 
         // Parse URL
         const url = new URL(req.url)
@@ -452,20 +552,6 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         // Handle errors
         return this.#handleError(err)
       }
-    }
-  }
-
-  #createLogger(): NorteLogger {
-    const createLogFn = (level: string) => (obj: object, msg?: string) => {
-      console[level as 'log'](msg || '', obj)
-    }
-
-    return {
-      info: createLogFn('log'),
-      warn: createLogFn('warn'),
-      error: createLogFn('error'),
-      debug: createLogFn('log'),
-      child: (_bindings: object) => this.#createLogger(), // Simplified for now
     }
   }
 
