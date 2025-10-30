@@ -10,10 +10,26 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: 'src/index.ts',
-      name: 'Norte',
+      entry: {
+        index: 'src/index.ts',
+        'bin/norte': 'src/cli/index.ts',
+      },
       formats: ['es'],
-      fileName: 'index',
+    },
+    rollupOptions: {
+      external: [
+        'commander',
+        'ora',
+        'chalk',
+        'ts-morph',
+        'ws',
+        'ajv',
+        'pino',
+        'pino-pretty',
+        '@sinclair/typebox',
+        'node:fs',
+        'node:path',
+      ],
     },
     emptyOutDir: true,
   },

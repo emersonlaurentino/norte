@@ -22,3 +22,28 @@ export type TelemetryOptions = {
   enabled: boolean
   serviceName?: string
 }
+
+// Paginated response type (optional - handlers can return plain arrays)
+export type PaginatedResponse<T> = {
+  data: T[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
+// Helper to create paginated responses
+export function createPaginatedResponse<T>(
+  data: T[],
+  pagination: { page: number; limit: number; total: number }
+): PaginatedResponse<T> {
+  return {
+    data,
+    pagination: {
+      ...pagination,
+      totalPages: Math.ceil(pagination.total / pagination.limit)
+    }
+  }
+}

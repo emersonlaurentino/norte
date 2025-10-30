@@ -12,7 +12,7 @@ export class NorteError extends Error {
 }
 
 export type BeforeHookContext<TStore extends NorteStore = NorteStore> = {
-  req: Request
+  request: Request
   headers: Headers
   param: Record<string, string> // Params *brutos* (strings)
   query: Record<string, string> // Query *bruta* (strings)
@@ -37,6 +37,7 @@ export type HandlerContext<TStore extends NorteStore = NorteStore> = {
   query: Record<string, unknown>
   store: TStore
   log: NorteLogger
+  request?: Request // Acesso ao request bruto (útil para .custom())
 }
 
 /** Contexto de paginação injetado nos 'handlers' .list() */
@@ -86,10 +87,10 @@ export type RouteDefinition<TStore extends NorteStore = NorteStore> = {
 }
 
 export class Router<TStore extends NorteStore = NorteStore> {
-  private readonly domain: string
-  private readonly parent: Router<TStore> | null
-  private readonly options: RouterOptions<TStore>
-  private readonly definitions: RouteDefinition<TStore>[] = []
+  readonly #domain: string
+  readonly #parent: Router<TStore> | null
+  readonly #options: RouterOptions<TStore>
+  readonly #definitions: RouteDefinition<TStore>[] = []
 
   constructor(domain: string, options: RouterOptions<TStore>)
   constructor(
@@ -103,19 +104,19 @@ export class Router<TStore extends NorteStore = NorteStore> {
     options?: RouterOptions<TStore>,
   ) {
     if (typeof parentOrDomain === 'string') {
-      this.domain = parentOrDomain
-      this.parent = null
-      this.options = domainOrOptions as RouterOptions<TStore>
+      this.#domain = parentOrDomain
+      this.#parent = null
+      this.#options = domainOrOptions as RouterOptions<TStore>
     } else {
-      this.parent = parentOrDomain
-      this.domain = domainOrOptions as string
+      this.#parent = parentOrDomain
+      this.#domain = domainOrOptions as string
       if (!options) {
         throw new Error('RouterOptions with schema is required.')
       }
-      this.options = options
+      this.#options = options
     }
 
-    if (!this.domain) {
+    if (!this.#domain) {
       throw new Error('The domain of the Router cannot be empty.')
     }
   }
@@ -173,7 +174,7 @@ export class Router<TStore extends NorteStore = NorteStore> {
     options: RouteOptions<TStore>,
     handler: Handler<TStore> | ListHandler<TStore>,
   ): this {
-    this.definitions.push({
+    this.#definitions.push({
       method,
       path,
       options,
@@ -184,9 +185,9 @@ export class Router<TStore extends NorteStore = NorteStore> {
   }
 
   #getDomainId(): string {
-    return this.domain.endsWith('s')
-      ? `${this.domain.slice(0, -1)}Id`
-      : `${this.domain}Id`
+    return this.#domain.endsWith('s')
+      ? `${this.#domain.slice(0, -1)}Id`
+      : `${this.#domain}Id`
   }
 
   // Acesso interno: protegido por token via método estático
@@ -199,10 +200,10 @@ export class Router<TStore extends NorteStore = NorteStore> {
     definitions: RouteDefinition<TStore>[]
   } {
     return {
-      domain: router.domain,
-      parent: router.parent,
-      options: router.options,
-      definitions: router.definitions,
+      domain: router.#domain,
+      parent: router.#parent,
+      options: router.#options,
+      definitions: router.#definitions,
     }
   }
 }

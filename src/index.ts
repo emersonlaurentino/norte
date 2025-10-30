@@ -5,5 +5,7 @@ export type {
   LoggerOptions,
   NorteLogger,
   NorteStore,
+  PaginatedResponse,
   TelemetryOptions,
 } from './types'
+export { createPaginatedResponse } from './types'

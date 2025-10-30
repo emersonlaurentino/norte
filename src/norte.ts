@@ -456,7 +456,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         // 1. Execute beforeHandler hooks
         for (const hook of beforeHooks) {
           store = await hook({
-            req,
+            request: req,
             headers: req.headers,
             param,
             query,
@@ -501,6 +501,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           query,
           store,
           log,
+          request: req,
         }
 
         // Para .list(), adicionar contexto de paginação

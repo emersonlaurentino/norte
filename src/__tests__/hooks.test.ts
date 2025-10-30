@@ -328,8 +328,8 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
       name: t.String(),
     })
 
-    const requestHook: BeforeHook<TestStore> = async ({ req, store }) => {
-      const url = new URL(req.url)
+    const requestHook: BeforeHook<TestStore> = async ({ request, store }) => {
+      const url = new URL(request.url)
       return { ...store, hostname: url.hostname }
     }
 

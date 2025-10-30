@@ -355,7 +355,7 @@ app.register(productsV3)  // /v3/products
 Execute before the handler, handle protocol concerns:
 
 ```typescript
-const authHook: BeforeHandleHook = async ({ request, headers, store, error }) => {
+const authHook: BeforeHook = async ({ request, headers, store, error }) => {
   const token = headers.get('authorization')?.replace('Bearer ', '')
   if (!token) {
     throw error('UNAUTHORIZED', 'Missing authorization token')
@@ -363,12 +363,16 @@ const authHook: BeforeHandleHook = async ({ request, headers, store, error }) =>
   
   // Validate token and set user in store
   const user = await validateToken(token)
-  store.user = user
+  return { ...store, user }
 }
 
-const userRouter = new Router('users', { version: 1 })
-  .hooks({ beforeHandle: [authHook] })
-  .read(config, handler)
+const userRouter = new Router('users', {
+  schema: userSchema,
+  version: 1,
+  beforeHandler: [authHook]
+})
+
+userRouter.read(config, handler)
 ```
 
 ### After Handle Hooks
@@ -376,13 +380,16 @@ const userRouter = new Router('users', { version: 1 })
 Execute after the handler, handle response concerns:
 
 ```typescript
-const loggingHook: AfterHandleHook = async ({ request, result, log }) => {
+const loggingHook: AfterHook = async ({ result, log }) => {
   log.info('Request completed', {
-    method: request.method,
-    url: request.url,
-    status: result instanceof NorteError ? result.statusCode : 200
+    status: result instanceof NorteError ? 'error' : 'success'
   })
 }
+
+const userRouter = new Router('users', {
+  schema: userSchema,
+  afterHandler: [loggingHook]
+})
 ```
 
 ## 📊 Observability & Logging
@@ -565,9 +572,64 @@ Norte adds intelligent hints to the OpenAPI spec for automatic cache invalidatio
 }
 ```
 
-These hints will be used by the future Norte CLI to generate type-safe clients with automatic cache invalidation.
+These hints are used by the Norte CLI to generate type-safe clients with automatic cache invalidation.
 
 **📖 Full OpenAPI documentation: [OPENAPI.md](./OPENAPI.md)**
+
+## 🖥️ CLI - Type-Safe Client Generation
+
+Norte includes a powerful CLI that generates type-safe clients from your OpenAPI specification.
+
+### Generate Client
+
+```bash
+# Generate TanStack Query hooks with auto cache invalidation
+norte generate
+
+# Generate from file
+norte generate --input ./openapi.json --output ./src/api
+
+# Generate plain fetch client
+norte generate --adapter fetch
+```
+
+### TanStack Query Example
+
+```typescript
+import { useUserList, useUserCreate } from './api'
+
+function UserList() {
+  // Query hook with auto-refresh
+  const { data: users, isLoading } = useUserList({ limit: 10 })
+  
+  // Mutation hook with auto cache invalidation
+  const createUser = useUserCreate()
+  
+  const handleCreate = async () => {
+    await createUser.mutateAsync({
+      name: 'Alice',
+      email: 'alice@example.com'
+    })
+    // useUserList cache is automatically invalidated!
+  }
+  
+  return (
+    <div>
+      {users?.map(user => <div key={user.id}>{user.name}</div>)}
+      <button onClick={handleCreate}>Create User</button>
+    </div>
+  )
+}
+```
+
+**Features:**
+
+- **Fully Type-Safe**: All inputs and outputs are typed from your schemas
+- **Auto Cache Invalidation**: Uses `x-norte-invalidates` hints for smart cache management
+- **Query Key Factory**: Includes generated query keys for manual cache control
+- **Multiple Adapters**: Choose between `fetch` (plain) or `tanstack-query` (React)
+
+**📖 Full CLI documentation: [CLI.md](./CLI.md)**
 
 ## 🎯 Examples
 
@@ -608,7 +670,7 @@ const ordersRouter = new Router(storeRouter, 'orders', { version: 1 })
 ### Authentication Hook
 
 ```typescript
-const authHook: BeforeHandleHook = async ({ request, headers, store, error }) => {
+const authHook: BeforeHook = async ({ request, headers, store, error }) => {
   const authHeader = headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
     throw error('UNAUTHORIZED', 'Missing or invalid authorization header')
@@ -621,12 +683,16 @@ const authHook: BeforeHandleHook = async ({ request, headers, store, error }) =>
     throw error('UNAUTHORIZED', 'Invalid token')
   }
   
-  store.user = user
+  return { ...store, user }
 }
 
-const protectedRouter = new Router('admin', { version: 1 })
-  .hooks({ beforeHandle: [authHook] })
-  .list(config, handler)
+const protectedRouter = new Router('admin', {
+  schema: adminSchema,
+  version: 1,
+  beforeHandler: [authHook]
+})
+
+protectedRouter.list(config, handler)
 ```
 
 ## 🌐 Platform Support
@@ -638,6 +704,57 @@ Norte's WinterCG-compatible `app.fetch` runs on:
 - **Cloudflare Workers**: Direct deployment
 - **Vercel**: Edge functions
 - **Deno**: With compatibility layer
+
+## 📦 Publishing
+
+### Building for Production
+
+```bash
+# Run tests
+bun test
+
+# Build the project
+bun run build
+
+# Verify build output
+ls dist/
+```
+
+### Publishing to npm
+
+```bash
+# 1. Update version in package.json (semver)
+# Example: 0.2.0 -> 0.3.0 (minor), 0.2.1 (patch), 1.0.0 (major)
+
+# 2. Run tests before publishing
+bun test
+
+# 3. Build the project
+bun run build
+
+# 4. Publish to npm
+npm publish
+
+# 5. Verify installation
+npx norte@latest --version
+```
+
+### Version Strategy
+
+Norte follows [Semantic Versioning](https://semver.org/):
+
+- **Major** (1.0.0): Breaking changes
+- **Minor** (0.2.0): New features, backwards compatible
+- **Patch** (0.2.1): Bug fixes, backwards compatible
+
+### Pre-publish Checklist
+
+- [ ] All tests passing (`bun test`)
+- [ ] README and docs updated
+- [ ] Version bumped in `package.json`
+- [ ] CHANGELOG updated (if exists)
+- [ ] Build succeeds (`bun run build`)
+- [ ] Clean working directory (`git status`)
 
 ## 🤝 Contributing
 

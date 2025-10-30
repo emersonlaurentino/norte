@@ -1,4 +1,4 @@
-import { Norte, Router, t } from '../src'
+import { Norte, Router, t } from '../src/index'
 
 type UserStore = { userId: string }
 
@@ -15,8 +15,8 @@ const UserSchema = t.Object({
 const userRouter = new Router<UserStore>('users', {
   schema: UserSchema, // Schema de response do domínio
   beforeHandler: [
-    async ({ req }) => {
-      const userId = req.headers.get('user-id') || ''
+    async ({ request }) => {
+      const userId = request.headers.get('user-id') || ''
       return { userId }
     },
   ],
