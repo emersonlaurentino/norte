@@ -64,6 +64,7 @@ export type ListHandler<TStore extends NorteStore = NorteStore> = (
 
 export type RouterOptions<TStore extends NorteStore = NorteStore> = {
   schema: NorteSchema // Schema de response do domínio (obrigatório)
+  version?: number // Versão da API (padrão: 1)
   beforeHandler?: BeforeHook<TStore>[]
   afterHandler?: AfterHook<TStore>[]
 }

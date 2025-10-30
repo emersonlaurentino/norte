@@ -108,9 +108,16 @@ export class Norte<TStore extends NorteStore = NorteStore> {
 
     // Walk up the parent chain to build the full path
     let currentRouter: Router<TStore> | null = router
+    let version: number | undefined
+
     while (currentRouter) {
       const internals = Router.getInternals(currentRouter)
-      const { domain, parent } = internals
+      const { domain, parent, options } = internals
+
+      // Capture version from the root router (top-level)
+      if (!parent && options.version !== undefined) {
+        version = options.version
+      }
 
       // Add the domain to the path
       parts.unshift(domain)
@@ -127,7 +134,11 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       currentRouter = parent as Router<TStore> | null
     }
 
-    // Build the path: /domain or /parent/:parentId/domain
+    // Add version prefix (default to 1 if not specified)
+    const versionPrefix = `v${version ?? 1}`
+    parts.unshift(versionPrefix)
+
+    // Build the path: /v{version}/domain or /v{version}/parent/:parentId/domain
     let fullPath = `/${parts.join('/')}`
 
     // Append the route-specific path
