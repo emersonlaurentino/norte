@@ -25,17 +25,42 @@ type CompiledRoute = {
   execute: (req: Request, params: Record<string, string>) => Promise<Response> // The "super function"
 }
 
+// OpenAPI metadata stored during compilation
+type OpenAPIRouteMetadata = {
+  method: string
+  path: string
+  summary?: string
+  description?: string
+  tags: string[]
+  operationId: string
+  requestBody?: Record<string, unknown> | undefined
+  parameters?: Array<Record<string, unknown>> | undefined
+  responses: Record<string, Record<string, unknown>>
+  'x-norte-invalidates'?: string[] | undefined // Cache invalidation hints
+  'x-norte-domain': string
+  'x-norte-version': number
+}
+
 export type NorteOptions = {
   logger?: LoggerOptions
   telemetry?: TelemetryOptions
+  openapi?: {
+    title?: string
+    version?: string
+    description?: string
+    servers?: Array<{ url: string; description?: string }>
+  }
 }
 
 export class Norte<TStore extends NorteStore = NorteStore> {
   #compiledRoutes: Map<string, CompiledRoute[]> = new Map() // Key: HTTP method
+  #openApiMetadata: OpenAPIRouteMetadata[] = []
+  #openApiDocument: Record<string, unknown> | null = null // Cached OpenAPI document
   #ajv: Ajv
   #baseLogger: pino.Logger
   #telemetryEnabled: boolean
   #telemetryServiceName: string
+  #openapiOptions: NorteOptions['openapi']
 
   constructor(options: NorteOptions = {}) {
     this.#ajv = new Ajv({
@@ -47,6 +72,9 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     // Initialize telemetry settings
     this.#telemetryEnabled = options.telemetry?.enabled ?? false
     this.#telemetryServiceName = options.telemetry?.serviceName ?? 'norte-api'
+
+    // Initialize OpenAPI options
+    this.#openapiOptions = options.openapi
 
     // Initialize base logger
     this.#baseLogger = this.#initializeLogger(options.logger)
@@ -146,7 +174,17 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       if (routes) {
         routes.push(compiledRoute)
       }
+
+      // Collect OpenAPI metadata during compilation
+      const metadata = this.#extractOpenAPIMetadata(
+        definition,
+        compiledRoute.pathPattern,
+      )
+      this.#openApiMetadata.push(metadata)
     }
+
+    // Invalidate cached OpenAPI document
+    this.#openApiDocument = null
   }
 
   #compileRoute(definition: RouteDefinition<TStore>): CompiledRoute {
@@ -597,10 +635,266 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     return statusMap[code] || 500
   }
 
+  #extractOpenAPIMetadata(
+    definition: RouteDefinition<TStore>,
+    fullPath: string,
+  ): OpenAPIRouteMetadata {
+    const { method, options, router } = definition
+    const routerInternals = Router.getInternals(router)
+    const { domain, options: routerOptions } = routerInternals
+    const version = routerOptions.version ?? 1
+
+    // Convert path params from :paramName to {paramName}
+    const openApiPath = fullPath.replace(/:(\w+)/g, '{$1}')
+
+    // Generate operation ID
+    const operationId = this.#generateOperationId(method, fullPath, domain)
+
+    // Build request body schema (if present)
+    let requestBody: Record<string, unknown> | undefined
+    if (options.body) {
+      requestBody = {
+        required: true,
+        content: {
+          'application/json': {
+            schema: options.body,
+          },
+        },
+      }
+    }
+
+    // Build parameters (query and path)
+    const parameters: Array<Record<string, unknown>> = []
+
+    if (options.query) {
+      const queryProps = (options.query as any).properties || {}
+      for (const [name, schema] of Object.entries(queryProps)) {
+        parameters.push({
+          name,
+          in: 'query',
+          required: (options.query as any).required?.includes(name) ?? false,
+          schema,
+        })
+      }
+    }
+
+    if (options.param) {
+      const paramProps = (options.param as any).properties || {}
+      for (const [name, schema] of Object.entries(paramProps)) {
+        parameters.push({
+          name,
+          in: 'path',
+          required: true,
+          schema,
+        })
+      }
+    }
+
+    // Determine default status
+    const defaultStatus = this.#getDefaultStatus(method)
+
+    // Build responses
+    const responses: Record<string, Record<string, unknown>> = {}
+
+    if (defaultStatus === 204) {
+      responses['204'] = {
+        description: 'No content',
+      }
+    } else {
+      const isListMethod =
+        method.toUpperCase() === 'GET' && definition.path === ''
+      responses[String(defaultStatus)] = {
+        description: 'Successful response',
+        content: {
+          'application/json': {
+            schema: isListMethod
+              ? {
+                  type: 'array',
+                  items: routerOptions.schema,
+                }
+              : routerOptions.schema,
+          },
+        },
+      }
+    }
+
+    // Add error responses
+    responses['400'] = { description: 'Invalid input' }
+    responses['500'] = { description: 'Internal server error' }
+
+    // Calculate cache invalidation hints
+    const invalidates = this.#calculateInvalidationHints(
+      method,
+      domain,
+      fullPath,
+    )
+
+    return {
+      method: method.toLowerCase(),
+      path: openApiPath,
+      summary: this.#generateSummary(method, domain),
+      tags: [domain],
+      operationId,
+      requestBody,
+      parameters: parameters.length > 0 ? parameters : undefined,
+      responses,
+      'x-norte-invalidates': invalidates,
+      'x-norte-domain': domain,
+      'x-norte-version': version,
+    }
+  }
+
+  #generateOperationId(method: string, path: string, domain: string): string {
+    // e.g., GET /v1/users -> listUsers
+    // e.g., POST /v1/users -> createUser
+    // e.g., GET /v1/users/:userId -> readUser
+
+    // Determine if this is a "read" operation by checking if the path ends with a domain ID parameter
+    const domainId = domain.endsWith('s')
+      ? `${domain.slice(0, -1)}Id`
+      : `${domain}Id`
+    const isReadOperation = path.endsWith(`:${domainId}`)
+
+    const methodMap: Record<string, string> = {
+      GET: isReadOperation ? 'read' : 'list',
+      POST: 'create',
+      PATCH: 'update',
+      DELETE: 'delete',
+    }
+
+    const prefix = methodMap[method.toUpperCase()] || method.toLowerCase()
+    const domainSingular = domain.endsWith('s') ? domain.slice(0, -1) : domain
+
+    return `${prefix}${domainSingular.charAt(0).toUpperCase()}${domainSingular.slice(1)}`
+  }
+
+  #generateSummary(method: string, domain: string): string {
+    const methodMap: Record<string, string> = {
+      GET: 'List',
+      POST: 'Create',
+      PATCH: 'Update',
+      DELETE: 'Delete',
+    }
+
+    const action = methodMap[method.toUpperCase()] || method
+    return `${action} ${domain}`
+  }
+
+  #calculateInvalidationHints(
+    method: string,
+    domain: string,
+    fullPath: string,
+  ): string[] | undefined {
+    const upperMethod = method.toUpperCase()
+
+    // Mutations (POST, PATCH, DELETE) invalidate list queries
+    if (['POST', 'PATCH', 'DELETE'].includes(upperMethod)) {
+      const hints: string[] = []
+
+      // Invalidate the list endpoint for this domain
+      const listPath = fullPath.split('/:')[0] // Remove param part
+      hints.push(`${upperMethod === 'POST' ? 'GET' : upperMethod} ${listPath}`)
+
+      // For nested routes, also invalidate parent lists
+      // e.g., POST /v1/stores/:storeId/products invalidates GET /v1/stores/:storeId/products
+      const pathParts = fullPath.split('/')
+      for (let i = pathParts.length - 1; i >= 0; i--) {
+        if (pathParts[i]?.startsWith(':')) {
+          const parentPath = pathParts.slice(0, i).join('/')
+          if (parentPath.includes(domain)) {
+            hints.push(`GET ${parentPath}`)
+          }
+        }
+      }
+
+      return hints.length > 0 ? hints : undefined
+    }
+
+    return undefined
+  }
+
+  #generateOpenAPIDocument(): Record<string, unknown> {
+    // Return cached document if available
+    if (this.#openApiDocument) {
+      return this.#openApiDocument
+    }
+
+    const paths: Record<string, Record<string, unknown>> = {}
+
+    // Build paths from metadata
+    for (const route of this.#openApiMetadata) {
+      if (!paths[route.path]) {
+        paths[route.path] = {}
+      }
+
+      const pathItem = paths[route.path]
+      if (!pathItem) {
+        continue
+      }
+
+      const operation: Record<string, unknown> = {
+        operationId: route.operationId,
+        summary: route.summary,
+        tags: route.tags,
+        responses: route.responses,
+        'x-norte-invalidates': route['x-norte-invalidates'],
+        'x-norte-domain': route['x-norte-domain'],
+        'x-norte-version': route['x-norte-version'],
+      }
+
+      if (route.requestBody) {
+        operation.requestBody = route.requestBody
+      }
+
+      if (route.parameters) {
+        operation.parameters = route.parameters
+      }
+
+      pathItem[route.method] = operation
+    }
+
+    // Build complete OpenAPI document
+    this.#openApiDocument = {
+      openapi: '3.0.3',
+      info: {
+        title: this.#openapiOptions?.title ?? 'Norte API',
+        version: this.#openapiOptions?.version ?? '1.0.0',
+        description:
+          this.#openapiOptions?.description ??
+          'API generated by Norte Framework',
+      },
+      servers: this.#openapiOptions?.servers ?? [
+        {
+          url: 'http://localhost:3000',
+          description: 'Development server',
+        },
+      ],
+      paths,
+      components: {
+        schemas: {},
+        securitySchemes: {},
+      },
+    }
+
+    return this.#openApiDocument
+  }
+
   public fetch = async (req: Request): Promise<Response> => {
     const method = req.method.toUpperCase()
     const url = new URL(req.url)
     const pathname = url.pathname
+
+    // Special route: Serve OpenAPI document
+    if (method === 'GET' && pathname === '/openapi.json') {
+      const openApiDoc = this.#generateOpenAPIDocument()
+      return new Response(JSON.stringify(openApiDoc, null, 2), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'public, max-age=3600', // Cache for 1 hour
+        },
+      })
+    }
 
     // Get routes for this HTTP method
     const routes = this.#compiledRoutes.get(method)

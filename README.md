@@ -533,23 +533,41 @@ router.read(config, async ({ param }) => {
 
 ## 📚 OpenAPI Documentation
 
-Norte automatically generates OpenAPI 3.1 specifications:
+Norte automatically generates "intelligent" OpenAPI 3.0 specifications with cache invalidation hints:
 
 ```typescript
-import { generateOpenAPISpec } from 'norte'
-
-const spec = generateOpenAPISpec(app.getRoutes(), {
-  title: 'My API',
-  version: '1.0.0'
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    version: '1.0.0',
+    description: 'My API description',
+    servers: [
+      { url: 'http://localhost:3000', description: 'Development' },
+      { url: 'https://api.example.com', description: 'Production' }
+    ]
+  }
 })
 
-// Serve OpenAPI spec
-app.custom('GET', '/docs', {}, async () => {
-  return new Response(JSON.stringify(spec), {
-    headers: { 'Content-Type': 'application/json' }
-  })
-})
+// OpenAPI is automatically available at:
+// GET http://localhost:3000/openapi.json
 ```
+
+### Smart Cache Invalidation
+
+Norte adds intelligent hints to the OpenAPI spec for automatic cache invalidation:
+
+```typescript
+// POST /v1/users includes:
+{
+  "x-norte-invalidates": ["GET /v1/users"],  // Invalidate user list
+  "x-norte-domain": "users",
+  "x-norte-version": 1
+}
+```
+
+These hints will be used by the future Norte CLI to generate type-safe clients with automatic cache invalidation.
+
+**📖 Full OpenAPI documentation: [OPENAPI.md](./OPENAPI.md)**
 
 ## 🎯 Examples
 
