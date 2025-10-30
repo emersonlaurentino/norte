@@ -1,20 +1,20 @@
 # Norte
 
-A modern, type-safe API framework that simplifies building production-ready REST APIs with automatic OpenAPI documentation and CRUD operations.
+A zero-dependency, opinionated API framework that follows the principles of business logic separation and static compilation for maximum performance.
 
-## ✨ Features
+## ✨ Philosophy
 
-- 🚀 **Fast Development** - Build APIs with minimal boilerplate
-- 📚 **Auto Documentation** - Automatic OpenAPI/Swagger generation with Scalar UI
-- 🛡️ **Type Safety** - Full TypeScript support with Zod validation
-- 🔧 **CRUD Made Easy** - Chainable methods for common operations
-- ⚡ **High Performance** - Built on top of Hono for maximum speed
-- 🎯 **Opinionated** - Sensible defaults that just work
-- 🔄 **Error Handling** - Built-in NorteError system with proper HTTP status codes
+Norte is not an HTTP framework; it's a **business logic framework** that uses HTTP as an implementation detail. Our opinionated approach focuses on eliminating boilerplate so developers can concentrate only on what adds value.
 
-## 🚀 Quick Start
+## 🚀 Core Principles
 
-### Installation
+- **Opinionated Simplicity**: One correct way to do things, ensuring consistency and zero ambiguity
+- **Performance by Static Compilation**: Moves maximum work (validation, routing) from runtime to initialization
+- **Total Protocol Abstraction**: Pure separation - Hooks handle Protocol (HTTP), Handlers handle Business Logic (pure data)
+- **Universal Portability**: Core agnostic (`app.fetch`) runs on any platform (Bun, Node.js, Cloudflare Workers, Vercel)
+- **Zero Dependencies**: Minimal external dependencies with TypeBox + AJV for validation
+
+## 📦 Installation
 
 ```bash
 bun add norte
@@ -26,10 +26,10 @@ yarn add norte
 pnpm add norte
 ```
 
-### Basic Usage
+## 🎯 Quick Start
 
 ```typescript
-import { Norte, Router, z, NorteError } from 'norte'
+import { Norte, Router, t, NorteError } from 'norte'
 
 // 1. Create your main app
 const app = new Norte({
@@ -37,59 +37,81 @@ const app = new Norte({
   version: '1.0.0'
 })
 
-// 2. Define your response schema
-const selectSchema = z.object({
-  id: z.string().cuid2(),
-  name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(18),
-  createdAt: z.date()
+// 2. Define schemas with TypeBox
+const userSchema = t.Object({
+  id: t.String(),
+  name: t.String(),
+  email: t.Email(),
+  age: t.Number({ minimum: 18 }),
+  createdAt: t.Date()
 })
 
-const insertSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(18)
+const createUserSchema = t.Object({
+  name: t.String(),
+  email: t.Email(),
+  age: t.Number({ minimum: 18 })
 })
 
-// 3. Create a router with CRUD operations using domain-driven approach
-const userRouter = new Router('users', { schema: selectSchema })
-  .list(async () => {
-    return await getUsersFromDB()
-  })
-  .create({ input: insertSchema }, async ({ input }) => {
-    return await createUser(input)
-  })
-  .read(async ({ param }) => {
-    const foundUser = await getUserById(param.userId)
-    if (!foundUser) {
-      return new NorteError('NOT_FOUND', 'User not found')
-    }
-    return foundUser
-  })
-  .update(
-    { input: insertSchema.partial() },
-    async ({ input, param }) => {
-      const updatedUser = await updateUser(param.userId, input)
-      if (!updatedUser) {
-        return new NorteError('NOT_FOUND', 'User not found')
-      }
-      return updatedUser
+// 3. Create a router with domain-driven approach
+const userRouter = new Router('users', { version: 1 })
+  .list(
+    { 
+      response: t.Array(userSchema),
+      query: t.Object({
+        limit: t.Optional(t.Number({ minimum: 1, maximum: 100 }))
+      })
+    },
+    async ({ query, log }) => {
+      log.info('Fetching users', { limit: query.limit })
+      return await getUsersFromDB(query.limit || 20)
     }
   )
-  .delete(async ({ param }) => {
-    const deleted = await deleteUser(param.userId)
-    if (!deleted) {
-      return new NorteError('NOT_FOUND', 'User not found')
+  .create(
+    { 
+      body: createUserSchema,
+      response: userSchema
+    },
+    async ({ body, log }) => {
+      log.info('Creating user', { email: body.email })
+      return await createUser(body)
     }
-  })
+  )
+  .read(
+    { 
+      response: userSchema,
+      param: t.Object({ userId: t.String() })
+    },
+    async ({ param, log }) => {
+      const user = await getUserById(param.userId)
+      if (!user) {
+        throw new NorteError('NOT_FOUND', 'User not found')
+      }
+      return user
+    }
+  )
 
 // 4. Register the router
 app.register(userRouter)
 
-// 5. Export for your runtime
+// 5. Export for your runtime (WinterCG compatible)
 export default app
 ```
+
+## 🏗️ Architecture: 3-Phase Compilation
+
+Norte operates as a "compiler" in three phases:
+
+### Phase 1: Definition (Runtime)
+Stores route definitions (`new Router(...)`) and schemas.
+
+### Phase 2: Compilation (Initialization)
+- Pre-compiles schemas (via AJV)
+- "Flattens" the before → handle → after chain into optimized functions
+- Builds routing tree
+- Generates "intelligent" OpenAPI
+
+### Phase 3: Execution (Runtime)
+Exposes a single `app.fetch` handler (WinterCG) that executes optimized functions with near-zero overhead.
 
 ## 📋 API Reference
 
@@ -106,9 +128,8 @@ const app = new Norte({
 
 #### Methods
 
-- `app.middleware(...middlewares)` - Add Hono middleware
 - `app.register(router)` - Register a Router instance
-- `app.fetch` - The fetch handler for your runtime (with proxy support)
+- `app.fetch` - The WinterCG-compatible fetch handler
 
 ### Router Class
 
@@ -117,12 +138,12 @@ Domain-driven API for creating CRUD operations with automatic OpenAPI documentat
 ```typescript
 // Root domain
 const router = new Router(domain: string, config: {
-  schema: ZodSchema    // Response data schema
+  version?: number
 })
 
 // Nested domain
 const router = new Router(parent: Router, domain: string, config: {
-  schema: ZodSchema
+  version?: number
 })
 ```
 
@@ -131,246 +152,164 @@ const router = new Router(parent: Router, domain: string, config: {
 Norte uses domain names to automatically generate paths, parameters, and OpenAPI tags:
 
 ```typescript
-// Domain: 'stores' -> generates /stores, parameter 'storeId', and OpenAPI tag 'Stores'
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
+// Domain: 'stores' -> generates /v1/stores, parameter 'storeId', and OpenAPI tag 'Stores'
+const storeRouter = new Router('stores', { version: 1 })
 
-// Domain: 'products' nested under stores -> generates /stores/:storeId/products and tag 'Products'
-const productsRouter = new Router(storeRouter, 'products', {
-  schema: productSchema
-})
-
-// Domain: 'variants' nested under products -> generates /stores/:storeId/products/:productId/variants and tag 'Variants'
-const variantsRouter = new Router(productsRouter, 'variants', {
-  schema: variantSchema
-})
-```
-
-#### Auto-Generated Routes
-
-Each domain automatically generates RESTful routes and OpenAPI tags:
-
-| Domain | Generated Routes | OpenAPI Tag |
-|--------|------------------|-------------|
-| `stores` | `GET /stores`, `POST /stores`, `GET /stores/:id`, `PUT /stores/:id`, `DELETE /stores/:id` | `Stores` |
-| `products` (nested) | `GET /stores/:storeId/products`, `POST /stores/:storeId/products`, etc. | `Products` |
-| `variants` (nested) | `GET /stores/:storeId/products/:productId/variants`, etc. | `Variants` |
-
-#### Parameter Auto-Generation
-
-Parameters and OpenAPI tags are automatically generated from domain names:
-
-```typescript
-// Domain transformations:
-'stores' -> 'storeId' (parameter) + 'Stores' (OpenAPI tag)
-'products' -> 'productId' (parameter) + 'Products' (OpenAPI tag)
-'categories' -> 'categoryId' (parameter) + 'Categories' (OpenAPI tag)
-'variants' -> 'variantId' (parameter) + 'Variants' (OpenAPI tag)
-
-// Handlers automatically receive all parent parameters + current domain parameter
-variantsRouter.read(async ({ param }) => {
-  // param contains: { storeId, productId, variantId }
-  const variant = await getVariant(param.variantId, param.productId, param.storeId)
-  return variant
-})
+// Domain: 'products' nested under stores -> generates /v1/stores/:storeId/products and tag 'Products'
+const productsRouter = new Router(storeRouter, 'products', { version: 1 })
 ```
 
 #### CRUD Methods
 
-Each method is chainable and generates the appropriate OpenAPI route:
+Each method requires schemas for input and output validation:
 
 **List Resources**
 ```typescript
-// Simple usage
-.list(handler: ListHandler)
-
-// With configuration
-.list(config: RouteCommonConfig, handler: ListHandler)
+.list(
+  config: RouteConfig<never, TResponse, TParams>,
+  handler: ListHandler<TResponse, TParams>
+)
 ```
 
 **Create Resource**
 ```typescript
 .create(
-  config: RouteCommonConfig & { input: ZodSchema },
-  handler: InsertHandler
+  config: RouteConfig<TInput, TResponse, TParams>,
+  handler: CreateHandler<TInput, TResponse, TParams>
 )
 ```
 
 **Read Resource**
 ```typescript
-// Simple usage
-.read(handler: ReadHandler)
-
-// With configuration
-.read(config: RouteCommonConfig, handler: ReadHandler)
+.read(
+  config: RouteConfig<never, TResponse, TParams>,
+  handler: ReadHandler<TResponse, TParams>
+)
 ```
 
 **Update Resource**
 ```typescript
 .update(
-  config: RouteCommonConfig & { input: ZodSchema },
-  handler: UpdateHandler
+  config: RouteConfig<TInput, TResponse, TParams>,
+  handler: UpdateHandler<TInput, TResponse, TParams>
 )
 ```
 
 **Delete Resource**
 ```typescript
-// Simple usage
-.delete(handler: DeleteHandler)
-
-// With configuration
-.delete(config: RouteCommonConfig, handler: DeleteHandler)
+.delete(
+  config: RouteConfig<never, never, TParams>,
+  handler: DeleteHandler<TParams>
+)
 ```
 
-#### Handler Types
+**Custom Route**
+```typescript
+.custom(
+  method: string,
+  path: string,
+  config: CustomRouteConfig<TParams>,
+  handler: CustomHandler<TParams>
+)
+```
+
+### Handler Context
+
+Handlers receive only validated data and business context:
 
 ```typescript
-type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
+type HandlerContext<TParams = Record<string, string>> = {
+  param: TParams           // Validated path parameters
+  body?: unknown          // Validated request body
+  query?: Record<string, string>  // Validated query parameters
+  store: Store           // Shared state between hooks and handlers
+  log: Logger            // Structured logging with request ID
+}
+```
 
-type HandlerContext<
-  TParams extends Record<string, string> = Record<string, never>,
-> = {
-  param: TParams
-  request: NorteRequest
+### Hook Context
+
+Hooks handle HTTP protocol concerns:
+
+```typescript
+type HookContext = {
+  request: Request        // Raw HTTP request
+  response?: Response     // HTTP response (in afterHandle)
+  headers: Headers        // Request headers
+  store: Store           // Shared state
+  log: Logger            // Structured logging
+  error: (code: string, message: string, details?: unknown) => NorteError
+}
+```
+
+## 🔧 TypeBox Validation
+
+Norte uses TypeBox for schema definition with AJV for compilation:
+
+```typescript
+import { t } from 'norte'
+
+// Primitives
+const schema = t.Object({
+  id: t.String(),
+  count: t.Number({ minimum: 0 }),
+  active: t.Boolean(),
+  tags: t.Array(t.String()),
+  metadata: t.Optional(t.Object({
+    created: t.Date(),
+    updated: t.Date()
+  }))
+})
+
+// Common patterns
+const userSchema = t.Object({
+  id: t.String(),
+  email: t.Email(),
+  uuid: t.Uuid(),
+  createdAt: t.Date()
+})
+```
+
+## 🎣 Lifecycle Hooks
+
+### Before Handle Hooks
+
+Execute before the handler, handle protocol concerns:
+
+```typescript
+const authHook: BeforeHandleHook = async ({ request, headers, store, error }) => {
+  const token = headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) {
+    throw error('UNAUTHORIZED', 'Missing authorization token')
+  }
+  
+  // Validate token and set user in store
+  const user = await validateToken(token)
+  store.user = user
 }
 
-type ListHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>[]>
-
-type InsertHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
-
-type ReadHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>>
-
-type UpdateHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
-
-type DeleteHandler<TParams extends Record<string, string>> = (
-  c: HandlerContext<TParams>,
-) => HandlerResult<undefined>
+const userRouter = new Router('users', { version: 1 })
+  .hooks({ beforeHandle: [authHook] })
+  .read(config, handler)
 ```
 
-#### Configuration Options
+### After Handle Hooks
 
-Routes can be configured with input schemas for validation.
-
-## 🏗️ Nested Domains
-
-Create nested resource hierarchies using domain-driven design:
-
-### Basic Nested Domains
+Execute after the handler, handle response concerns:
 
 ```typescript
-import { Router, z, NorteError } from 'norte'
-
-// Root domain
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
-  .list(async () => {
-    const stores = await getStores()
-    return stores
+const loggingHook: AfterHandleHook = async ({ request, result, log }) => {
+  log.info('Request completed', {
+    method: request.method,
+    url: request.url,
+    status: result instanceof NorteError ? result.statusCode : 200
   })
-
-// Nested domain - parent as first argument
-const productsRouter = new Router(storeRouter, 'products', {
-  schema: productSchema
-})
-  .list(async ({ param }) => {
-    // param.storeId is automatically available from parent domain
-    const products = await getProductsByStore(param.storeId)
-    return products
-  })
-  .read(async ({ param }) => {
-    // param contains both storeId and productId
-    const product = await getProductById(param.productId, param.storeId)
-    return product || new NorteError('NOT_FOUND', 'Product not found')
-  })
-
-// Register both routers
-app.register(storeRouter)
-app.register(productsRouter)
-```
-
-### Deep Domain Nesting
-
-```typescript
-// Four-level domain hierarchy
-const storeRouter = new Router('stores', { 
-  schema: storeSchema 
-})
-
-const productsRouter = new Router(storeRouter, 'products', { 
-  schema: productSchema 
-})
-
-const variantsRouter = new Router(productsRouter, 'variants', { 
-  schema: variantSchema 
-})
-
-const optionsRouter = new Router(variantsRouter, 'options', { 
-  schema: optionSchema 
-})
-
-// Final routes: /stores/:storeId/products/:productId/variants/:variantId/options
-// Handler receives: { storeId, productId, variantId, id }
-```
-
-
-
-### Domain Constructor Patterns
-
-```typescript
-// Root domain
-new Router(domain: string, config: RouterConfig)
-
-// Nested domain  
-new Router(parent: Router, domain: string, config: RouterConfig)
-```
-
-**Note**: The `name` attribute is no longer needed in the config. OpenAPI tags and route names are automatically generated from the domain name (e.g., `'stores'` becomes `'Stores'`).
-
-### Parameter Inheritance
-
-Nested routers automatically inherit all parameters from their parent chain:
-
-```typescript
-// For nested domain: pharmacies -> categories -> products -> variants
-interface NestedParams {
-  pharmacyId: string    // From parent 'pharmacies' domain
-  categoryId: string    // From parent 'categories' domain  
-  productId: string     // From parent 'products' domain
-  variantId: string     // From current 'variants' domain
 }
-
-// All parameters are automatically validated as CUID2 strings
-const paramSchema = z.object({
-  pharmacyId: z.string().cuid2(),
-  categoryId: z.string().cuid2(),
-  productId: z.string().cuid2(),
-  variantId: z.string().cuid2()
-})
 ```
 
 ## 🚨 Error Handling
 
-Norte includes a comprehensive error system with the `NorteError` class:
+Norte includes a comprehensive error system:
 
 ```typescript
 import { NorteError } from 'norte'
@@ -385,202 +324,104 @@ type ErrorCode =
   | 'INTERNAL_SERVER_ERROR' // 500
 
 // Usage in handlers
-router.read(async ({ param }) => {
+router.read(config, async ({ param }) => {
   const user = await getUserById(param.userId)
   if (!user) {
-    return new NorteError('NOT_FOUND', 'User not found', { userId: param.userId })
+    throw new NorteError('NOT_FOUND', 'User not found', { userId: param.userId })
   }
   return user
 })
 ```
 
-## 📚 Documentation
+## 📚 OpenAPI Documentation
 
-Norte automatically generates interactive API documentation using Scalar:
-
-- **Main docs**: Visit `/` for multi-source Scalar documentation
-- **API docs**: Available at `/docs` (OpenAPI 3.1)
-- **Health check**: Available at `/healthcheck`
-
-The documentation includes:
-- Automatic schema generation from Zod schemas
-- Request/response examples
-- Interactive API testing
-- Error response formats
-
-## 🛠️ Advanced Usage
-
-### Custom Middleware
-
-Norte comes with `logger` and `prettyJSON` middlewares configured by default. You can add any additional Hono middleware through the `middleware()` method:
+Norte automatically generates OpenAPI 3.1 specifications:
 
 ```typescript
-import { cors } from 'hono/cors'
-import { compress } from 'hono/compress'
+import { generateOpenAPISpec } from 'norte'
 
-// Add CORS middleware
-app.middleware(cors({
-  origin: ['https://yourdomain.com'],
-  credentials: true
-}))
-
-// Add compression middleware
-app.middleware(compress())
-
-// Custom middleware
-app.middleware(async (c, next) => {
-  console.log('Custom middleware executed')
-  await next()
+const spec = generateOpenAPISpec(app.getRoutes(), {
+  title: 'My API',
+  version: '1.0.0'
 })
-```
 
-### Parameter Validation
-
-All ID parameters are automatically validated as CUID2 strings:
-
-```typescript
-// Automatically validates param.userId as z.cuid2()
-userRouter.read(async ({ param }) => {
-  const { userId } = param // userId is guaranteed to be a valid CUID2
-  // ...
+// Serve OpenAPI spec
+app.custom('GET', '/docs', {}, async () => {
+  return new Response(JSON.stringify(spec), {
+    headers: { 'Content-Type': 'application/json' }
+  })
 })
-```
-
-### Response Format
-
-All successful responses follow a consistent format:
-
-```typescript
-// List responses
-{ "data": [...] }
-
-// Single resource responses  
-{ "data": {...} }
-
-// Error responses
-{ 
-  "error": "ERROR_CODE",
-  "message": "Human readable message",
-  "details": {...} // Optional additional details
-}
 ```
 
 ## 🎯 Examples
-
-### Database Integration (Drizzle) with Domains
-
-```typescript
-import { eq } from 'drizzle-orm'
-import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-
-const userResponseSchema = createSelectSchema(userTable)
-const insertSchema = createInsertSchema(userTable).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
-})
-
-// Domain-driven router instead of path-based
-const userRouter = new Router('users', {
-  schema: userResponseSchema
-})
-  .list(async ({ user }) => {
-    const users = await db.select().from(userTable).where(eq(userTable.tenantId, user.tenantId))
-    return users
-  })
-  .create(
-    { input: insertSchema },
-    async ({ input, user }) => {
-      const [newUser] = await db
-        .insert(userTable)
-        .values({ ...input, tenantId: user.tenantId })
-        .returning()
-      return newUser
-    }
-  )
-  .read(async ({ param }) => {
-    const [user] = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, param.userId))
-    
-    if (!user) {
-      return new NorteError('NOT_FOUND', 'User not found')
-    }
-    
-    return user
-  })
-```
 
 ### Multi-Tenant Store Example
 
 ```typescript
 // Store domain for multi-tenant architecture
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
-  .list(async ({ user }) => {
-    // Get stores for current tenant
-    const stores = await db
-      .select()
-      .from(storeTable)
-      .where(eq(storeTable.tenantId, user.tenantId))
-    return stores
-  })
+const storeRouter = new Router('stores', { version: 1 })
+  .list(
+    { response: t.Array(storeSchema) },
+    async ({ store, log }) => {
+      const stores = await db.stores.findMany({
+        where: { tenantId: store.user.tenantId }
+      })
+      return stores
+    }
+  )
 
-// Orders nested under stores - generates /stores/:storeId/orders
-const ordersRouter = new Router(storeRouter, 'orders', {
-  schema: orderSchema
-})
-  .list(async ({ param, user }) => {
-    // param.storeId automatically available with validation
-    const orders = await db
-      .select()
-      .from(orderTable)
-      .where(
-        and(
-          eq(orderTable.storeId, param.storeId),
-          eq(orderTable.tenantId, user.tenantId) // Multi-tenant security
-        )
-      )
-    return orders
-  })
-
-// Items nested under orders - generates /stores/:storeId/orders/:orderId/items
-const orderItemsRouter = new Router(ordersRouter, 'items', {
-  schema: orderItemSchema
-})
-  .list(async ({ param }) => {
-    // param contains: { storeId, orderId }
-    const items = await db
-      .select()
-      .from(orderItemTable)
-      .where(eq(orderItemTable.orderId, param.orderId))
-    return items
-  })
-```
-
-### Validation with Custom Error Messages
-
-```typescript
-const createPostSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title too long'),
-  content: z.string().min(10, 'Content must be at least 10 characters'),
-  published: z.boolean().default(false)
-})
-
-const postRouter = new Router('posts', {
-  schema: postResponseSchema
-})
-  .create(
-    { input: createPostSchema },
-    async ({ input, user }) => {
-      // Input is automatically validated against createPostSchema
-      const post = await createPost({ ...input, authorId: user.id })
-      return post
+// Orders nested under stores - generates /v1/stores/:storeId/orders
+const ordersRouter = new Router(storeRouter, 'orders', { version: 1 })
+  .list(
+    { 
+      response: t.Array(orderSchema),
+      param: t.Object({ storeId: t.String() })
+    },
+    async ({ param, store }) => {
+      const orders = await db.orders.findMany({
+        where: {
+          storeId: param.storeId,
+          tenantId: store.user.tenantId // Multi-tenant security
+        }
+      })
+      return orders
     }
   )
 ```
+
+### Authentication Hook
+
+```typescript
+const authHook: BeforeHandleHook = async ({ request, headers, store, error }) => {
+  const authHeader = headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw error('UNAUTHORIZED', 'Missing or invalid authorization header')
+  }
+
+  const token = authHeader.slice(7)
+  const user = await validateJWT(token)
+  
+  if (!user) {
+    throw error('UNAUTHORIZED', 'Invalid token')
+  }
+  
+  store.user = user
+}
+
+const protectedRouter = new Router('admin', { version: 1 })
+  .hooks({ beforeHandle: [authHook] })
+  .list(config, handler)
+```
+
+## 🌐 Platform Support
+
+Norte's WinterCG-compatible `app.fetch` runs on:
+
+- **Bun**: `Bun.serve({ fetch: app.fetch })`
+- **Node.js**: With `@cloudflare/workers-types`
+- **Cloudflare Workers**: Direct deployment
+- **Vercel**: Edge functions
+- **Deno**: With compatibility layer
 
 ## 🤝 Contributing
 
@@ -592,6 +433,6 @@ MIT © Emerson Laurentino
 
 ## 🔗 Links
 
-- [Hono](https://hono.dev)
-- [Zod](https://zod.dev)
-- [Scalar](https://scalar.com)
+- [TypeBox](https://github.com/sinclairzx81/typebox)
+- [AJV](https://ajv.js.org/)
+- [WinterCG](https://wintercg.org/)

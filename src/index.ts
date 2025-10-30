@@ -1,4 +1,3 @@
-export { z } from '@hono/zod-openapi'
-export * from './error'
-export * from './norte'
-export * from './router'
+export { Type as t } from '@sinclair/typebox'
+export { Norte } from './norte'
+export { Router, NorteError } from './router'

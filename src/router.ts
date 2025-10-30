@@ -1,800 +1,198 @@
-import { createRoute, OpenAPIHono, type RouteConfig } from '@hono/zod-openapi'
-import type { Context } from 'hono'
-import { z } from 'zod'
-import { NorteError } from './error'
-import { commonResponses } from './utils'
+import type { TSchema } from '@sinclair/typebox'
+import type { NorteLogger, NorteStore } from './types'
 
-// Converts 'stores' -> 'store' | 'categories' -> 'category'
-type Singular<T extends string> = T extends `${infer P}ies`
-  ? `${P}y`
-  : T extends `${infer P}s`
-    ? P
-    : T
+export type NorteSchema = TSchema
 
-type DomainToParamName<D extends string> = `${Singular<D>}Id`
-
-type DomainToParam<D extends string> = {
-  [K in DomainToParamName<D>]: string
+export class NorteError extends Error {
+  public code: string
+  constructor(code: string, message: string) {
+    super(message)
+    this.code = code
+  }
 }
 
-type ZodSchema = z.ZodTypeAny
-
-interface RouterConfig<TResponse extends ZodSchema> {
-  schema: TResponse
-}
-
-type NorteRequest = {
+export type BeforeHookContext<TStore extends NorteStore = NorteStore> = {
+  req: Request
   headers: Headers
+  param: Record<string, string> // Params *brutos* (strings)
+  query: Record<string, string> // Query *bruta* (strings)
+  store: TStore // O "saco" para preencher
+  log: NorteLogger
+  error: (code: string, msg: string) => NorteError
 }
 
-type HandlerContext<
-  TParams extends Record<string, string> = Record<string, never>,
-> = {
-  param: TParams
-  request: NorteRequest
+/** Contexto injetado no 'afterHandler' (Camada de Protocolo) */
+export type AfterHookContext<TStore extends NorteStore = NorteStore> = {
+  result: unknown // O que o handler retornou ou lançou
+  response: { status?: number } // O estado da resposta para mutar
+  headers: Headers // Headers da resposta para mutar
+  store: TStore
+  log: NorteLogger
 }
 
-// Simplified handler types
-type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
+/** Contexto injetado no 'handler' (Camada de Negócio Pura) */
+export type HandlerContext<TStore extends NorteStore = NorteStore> = {
+  body: unknown
+  param: Record<string, unknown>
+  query: Record<string, unknown>
+  store: TStore
+  log: NorteLogger
+}
 
-type ListHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>[]>
+/** Contexto de paginação injetado nos 'handlers' .list() */
+export type PaginationContext = {
+  page: number
+  limit: number
+  offset: number
+}
 
-type InsertHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
+export type BeforeHook<TStore extends NorteStore = NorteStore> = (
+  ctx: BeforeHookContext<TStore>,
+) => TStore | Promise<TStore>
 
-type UpdateHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
+export type AfterHook<TStore extends NorteStore = NorteStore> = (
+  ctx: AfterHookContext<TStore>,
+) => Promise<void> | void
 
-type ReadHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>>
+export type Handler<TStore extends NorteStore = NorteStore> = (
+  ctx: HandlerContext<TStore>,
+) => Promise<unknown> | unknown
 
-type DeleteHandler<TParams extends Record<string, string>> = (
-  c: HandlerContext<TParams>,
-) => HandlerResult<undefined>
+export type ListHandler<TStore extends NorteStore = NorteStore> =
+  Handler<TStore> & {
+    pagination: PaginationContext
+  }
 
-export class Router<
-  TResponse extends ZodSchema,
-  TDomain extends string,
-  TCollectionParams extends Record<string, string> = Record<string, never>,
-  TItemParams extends Record<string, string> = TCollectionParams &
-    DomainToParam<TDomain>,
-> {
-  private name: string
-  private domain: TDomain
-  private schema: TResponse
-  private router: OpenAPIHono
-  // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
-  private parent: Router<any, string, any, any> | null = null
+export type RouterOptions<TStore extends NorteStore = NorteStore> = {
+  beforeHandler?: BeforeHook<TStore>[]
+  afterHandler?: AfterHook<TStore>[]
+}
 
-  /**
-   * Create a new Router instance
-   * @param domain - The domain name for root router (e.g., 'stores')
-   * @param config - The router configuration containing schema
-   */
-  constructor(domain: TDomain, config: RouterConfig<TResponse>)
-  /**
-   * Create a new nested Router instance
-   * @param parent - The parent router instance
-   * @param domain - The domain name for nested router (e.g., 'products')
-   * @param config - The router configuration containing schema
-   */
+export type RouteOptions<TStore extends NorteStore = NorteStore> = {
+  body?: NorteSchema
+  query?: NorteSchema
+  param?: NorteSchema
+  beforeHandler?: BeforeHook<TStore>[]
+  afterHandler?: AfterHook<TStore>[]
+}
+
+export type RouteDefinition<TStore extends NorteStore = NorteStore> = {
+  method: string
+  path: string
+  handler: Handler<TStore>
+  options: RouteOptions<TStore>
+  router: Router<TStore>
+}
+
+export class Router<TStore extends NorteStore = NorteStore> {
+  private readonly domain: string
+  private readonly parent: Router<TStore> | null
+  private readonly options: RouterOptions<TStore>
+  private readonly definitions: RouteDefinition<TStore>[] = []
+
+  constructor(domain: string, options?: RouterOptions<TStore>)
   constructor(
-    // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
-    parent: Router<any, string, any, TCollectionParams>,
-    domain: TDomain,
-    config: RouterConfig<TResponse>,
+    parent: Router<TStore>,
+    domain: string,
+    options?: RouterOptions<TStore>,
   )
-  /**
-   * Create a new Router instance with overloaded constructor
-   * @param domainOrParent - Either the domain name (string) or parent router instance
-   * @param domainOrConfig - Either the domain name (if parent provided) or config object
-   * @param config - The router configuration (if parent provided)
-   */
   constructor(
-    // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
-    domainOrParent: TDomain | Router<any, string, any, TCollectionParams>,
-    domainOrConfig?: string | RouterConfig<TResponse>,
-    config?: RouterConfig<TResponse>,
+    parentOrDomain: Router<TStore> | string,
+    domainOrOptions?: string | RouterOptions<TStore>,
+    options?: RouterOptions<TStore>,
   ) {
-    if (typeof domainOrParent === 'string') {
-      // Root router: new Router('stores', config)
-      this.domain = domainOrParent
-      this.schema = (domainOrConfig as RouterConfig<TResponse>).schema
+    if (typeof parentOrDomain === 'string') {
+      this.domain = parentOrDomain
+      this.parent = null
+      this.options = (domainOrOptions as RouterOptions<TStore>) ?? {}
     } else {
-      // Nested router: new Router(parent, 'products', config)
-      // biome-ignore lint/suspicious/noExplicitAny: Needed for complex nested router types
-      this.parent = domainOrParent as any
-      this.domain = domainOrConfig as TDomain
-      this.schema = config?.schema as TResponse
+      this.parent = parentOrDomain
+      this.domain = domainOrOptions as string
+      this.options = options ?? {}
     }
 
-    // Generate name from domain (capitalize first letter)
-    this.name = this.domain.charAt(0).toUpperCase() + this.domain.slice(1)
-    this.router = new OpenAPIHono()
-  }
-
-  /**
-   * Generate parameter name from domain
-   * 'stores' -> 'storeId'
-   * 'products' -> 'productId'
-   * 'categories' -> 'categoryId'
-   */
-  private createParamFromDomain(): string {
-    // Handle plural to singular conversion
-    const singular = this.domain.endsWith('ies')
-      ? `${this.domain.slice(0, -3)}y` // categories -> category
-      : this.domain.endsWith('s')
-        ? this.domain.slice(0, -1) // stores -> store
-        : this.domain // product -> product
-    return `${singular}Id`
-  }
-
-  /**
-   * Get full path including parent paths and auto-generated params
-   * stores -> /stores
-   * stores/products -> /stores/:storeId/products
-   * stores/products/variants -> /stores/:storeId/products/:productId/variants
-   */
-  private createPath(options: { includeId?: boolean } = {}): string {
-    const { includeId = false } = options
-    const domainPath = `/${this.domain}${includeId ? `/:${this.createParamFromDomain()}` : ''}`
-    if (this.parent) {
-      const parentPath = this.parent.createPath()
-      const parentParam = this.parent.createParamFromDomain()
-      return `${parentPath}/:${parentParam}${domainPath}`
+    if (!this.domain) {
+      throw new Error('The domain of the Router cannot be empty.')
     }
-    return domainPath
   }
 
-  /**
-   * Get all parameter names for the current route, including parent params
-   * and the current domain's ID if includeId is true
-   */
-  private getParams(options: { includeId?: boolean } = {}): string[] {
-    const { includeId = false } = options
-    const path = this.createPath({ includeId })
-    return path
-      .split('/')
-      .filter((item) => item.startsWith(':'))
-      .map((item) => item.slice(1))
+  public list(
+    options: RouteOptions<TStore>,
+    handler: ListHandler<TStore>,
+  ): this {
+    return this.addDefinition('GET', '', options, handler)
   }
 
-  /**
-   * Get all parameter schemas for the current route, including parent params
-   * and the current domain's ID if includeId is true
-   */
-  private getParamsSchema(
-    options: { includeId?: boolean } = {},
-  ): z.ZodObject<Record<string, z.ZodString>> | undefined {
-    const params = this.getParams(options)
-    if (params.length === 0) return undefined
-    return z.object(
-      Object.fromEntries(params.map((param) => [param, z.string()])) as Record<
-        (typeof params)[number],
-        z.ZodString
-      >,
+  public create(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+    return this.addDefinition('POST', '', options, handler)
+  }
+
+  public read(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+    return this.addDefinition(
+      'GET',
+      `/:${this.getDomainId()}`,
+      options,
+      handler,
     )
   }
 
-  /**
-   * Get the internal Hono router instance for this route
-   * @returns The internal Hono router instance for this route
-   */
-  private getInternalRouter() {
-    return this.router
+  public update(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+    return this.addDefinition(
+      'PATCH',
+      `/:${this.getDomainId()}`,
+      options,
+      handler,
+    )
   }
 
-  /**
-   * Get the Hono router instance for a specific route
-   * @param router - The router instance to get the Hono router for
-   * @returns The Hono router instance for the specified route
-   */
-  public static getRouter<
-    TResponse extends ZodSchema,
-    TDomain extends string,
-    TCollectionParams extends Record<string, string>,
-  >(router: Router<TResponse, TDomain, TCollectionParams>) {
-    return router.getInternalRouter()
+  public delete(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+    return this.addDefinition(
+      'DELETE',
+      `/:${this.getDomainId()}`,
+      options,
+      handler,
+    )
   }
 
-  /**
-   * Get the singular name of the domain (e.g., 'store' for 'stores')
-   * @returns The singular name of the domain in lowercase
-   */
-  private getSingularName() {
-    const lowercaseName = this.name.toLowerCase()
-    if (lowercaseName.endsWith('s') && lowercaseName.length > 1) {
-      return lowercaseName.slice(0, -1)
-    }
-    return lowercaseName
+  public custom(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | string,
+    path: string,
+    options: RouteOptions<TStore>,
+    handler: Handler<TStore>,
+  ): this {
+    return this.addDefinition(method, path, options, handler)
   }
 
-  /**
-   * Resolve the handler arguments for a route
-   * @param options The options object containing configOrHandler and optional handler
-   * @returns The resolved configuration and handler function
-   */
-  private resolveHandlerArgs<T>(options: {
-    configOrHandler: Record<string, never> | T
-    handler?: T
-  }): { config: Record<string, never>; actualHandler: NonNullable<T> } {
-    const { configOrHandler, handler } = options
-    if (typeof configOrHandler === 'function') {
-      return { config: {}, actualHandler: configOrHandler as NonNullable<T> }
-    }
-    if (!handler) {
-      throw new Error('Handler is required when config is provided')
-    }
+  private addDefinition(
+    method: string,
+    path: string,
+    options: RouteOptions<TStore>,
+    handler: Handler<TStore>,
+  ): this {
+    this.definitions.push({ method, path, options, handler, router: this })
+    return this
+  }
+
+  private getDomainId(): string {
+    return this.domain.endsWith('s')
+      ? `${this.domain.slice(0, -1)}Id`
+      : `${this.domain}Id`
+  }
+
+  // Acesso interno: protegido por token via método estático
+  public static getInternals<TStore extends NorteStore = NorteStore>(
+    router: Router<TStore>,
+  ): {
+    domain: string
+    parent: Router<TStore> | null
+    options: RouterOptions<TStore>
+    definitions: RouteDefinition<TStore>[]
+  } {
     return {
-      config: configOrHandler as Record<string, never>,
-      actualHandler: handler as NonNullable<T>,
+      domain: router.domain,
+      parent: router.parent,
+      options: router.options,
+      definitions: router.definitions,
     }
-  }
-
-  /**
-   * Create a standardized error response
-   * @param options The options object containing context and error
-   * @returns The error response
-   */
-  private createErrorResponse(options: {
-    context: Context
-    error: NorteError
-  }) {
-    const { context, error } = options
-    return context.json(
-      { error: error.code, message: error.message, details: error.details },
-      error.statusCode,
-    )
-  }
-
-  /**
-   * Handle errors in a standardized way
-   * @param options The options object containing context and error
-   * @returns The error response
-   */
-  private handleError(options: { context: Context; error: unknown }) {
-    const { context, error } = options
-    if (error instanceof NorteError)
-      return this.createErrorResponse({ context, error })
-    if (error instanceof Error) {
-      return context.json(
-        { error: 'INTERNAL_SERVER_ERROR', details: error.message },
-        500,
-      )
-    }
-    return context.json({ error: 'INTERNAL_SERVER_ERROR' }, 500)
-  }
-
-  /**
-   * Validate the response data against the route schema
-   * @param options The options object containing data to validate
-   * @returns The validation result
-   */
-  private validateResponseSchema(options: {
-    data: unknown
-  }):
-    | { success: true; data: z.infer<TResponse> }
-    | { success: false; error: z.ZodError } {
-    const { data } = options
-    try {
-      // First try to parse with the schema
-      const result = this.schema.safeParse(data)
-      if (result.success) {
-        return { success: true, data: result.data }
-      }
-      return { success: false, error: result.error }
-    } catch {
-      // Fallback for schemas that might not have safeParse method correctly implemented
-      try {
-        const parsedData = this.schema.parse(data)
-        return { success: true, data: parsedData }
-      } catch (parseError) {
-        if (parseError instanceof z.ZodError) {
-          return { success: false, error: parseError }
-        }
-        // Create a generic ZodError if it's not a ZodError
-        return {
-          success: false,
-          error: new z.ZodError([
-            {
-              code: 'custom',
-              message: 'Schema validation failed',
-              path: [],
-              input: data,
-            },
-          ]),
-        }
-      }
-    }
-  }
-
-  /**
-   * Get the operation configuration for a specific route operation
-   * @param operation The operation type (list, create, read, update, delete)
-   * @returns The operation configuration
-   */
-  private getOperationConfig(options: {
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-  }) {
-    const { operation } = options
-    const configs = {
-      list: {
-        method: 'get',
-        includeId: false,
-        status: 200,
-        hasData: true,
-        hasCommonErrors: true,
-      },
-      create: {
-        method: 'post',
-        includeId: false,
-        status: 201,
-        hasData: true,
-        hasCommonErrors: true,
-      },
-      read: {
-        method: 'get',
-        includeId: true,
-        status: 200,
-        hasData: true,
-        hasCommonErrors: false,
-      },
-      update: {
-        method: 'patch',
-        includeId: true,
-        status: 200,
-        hasData: true,
-        hasCommonErrors: true,
-      },
-      delete: {
-        method: 'delete',
-        includeId: true,
-        status: 204,
-        hasData: false,
-        hasCommonErrors: false,
-      },
-    }
-    return configs[operation]
-  }
-
-  /**
-   * Build the request object for route configuration
-   * @param includeId - Whether to include ID parameter in the request
-   * @param hasInput - Whether the route accepts input data
-   * @param config - Route configuration object
-   * @returns The request object or undefined if no parameters needed
-   */
-  private buildRequestObject(options: {
-    includeId: boolean
-    hasInput: boolean
-    config: Record<string, never> & { input?: ZodSchema }
-  }) {
-    const { includeId, hasInput, config } = options
-    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
-    const request: any = {}
-
-    // Always include parameters if there are any (parent params or current id)
-    const paramSchema = this.getParamsSchema({ includeId })
-    if (paramSchema) {
-      request.params = paramSchema
-    }
-
-    if (hasInput && config.input) {
-      request.body = {
-        content: { 'application/json': { schema: config.input } },
-      }
-    }
-
-    return Object.keys(request).length > 0 ? request : undefined
-  }
-
-  /**
-   * Build the success response configuration for a route operation
-   * @param operation - The type of operation (list, create, read, update, delete)
-   * @param status - The HTTP status code for success response
-   * @param hasData - Whether the response includes data
-   * @returns The success response configuration object
-   */
-  private buildSuccessResponse(options: {
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-    status: number
-    hasData: boolean
-  }) {
-    const { operation, status, hasData } = options
-    const descriptions: Record<typeof operation, string> = {
-      list: `List of ${this.name.toLowerCase()}`,
-      read: `${this.getSingularName()} details`,
-      create: `${this.getSingularName()} created successfully`,
-      update: `${this.getSingularName()} updated successfully`,
-      delete: `${this.getSingularName()} deleted successfully`,
-    }
-
-    if (status === 204) {
-      return { [status]: { description: descriptions[operation] } }
-    }
-
-    if (!hasData) return {}
-
-    const dataSchema =
-      operation === 'list'
-        ? z.object({ data: z.array(this.schema) })
-        : z.object({ data: this.schema })
-
-    return {
-      [status]: {
-        description: descriptions[operation],
-        content: { 'application/json': { schema: dataSchema } },
-      },
-    }
-  }
-
-  /**
-   * Build the error responses configuration for a route operation
-   * @param operation - The type of operation (list, create, read, update, delete)
-   * @param includeId - Whether the route includes an ID parameter
-   * @param hasCommonErrors - Whether to include common error responses
-   * @returns The error responses configuration object
-   */
-  private buildErrorResponses(options: {
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-    includeId: boolean
-    hasCommonErrors: boolean
-  }) {
-    const { operation, includeId, hasCommonErrors } = options
-    // biome-ignore lint/suspicious/noExplicitAny: Required for Hono route configuration
-    const responses: any = {}
-
-    if (hasCommonErrors && (operation === 'create' || operation === 'update')) {
-      responses[400] = commonResponses[400]
-      responses[403] = commonResponses[403]
-      responses[409] = commonResponses[409]
-    }
-
-    if (includeId || hasCommonErrors) {
-      responses[404] = commonResponses[404]
-    }
-
-    return responses
-  }
-
-  /**
-   * Create route definition for OpenAPI specification
-   * @param operation - The type of operation (list, create, read, update, delete)
-   * @param config - Route configuration including input schema and public access settings
-   * @returns The complete route definition for Hono OpenAPI
-   */
-  private createDefinition(options: {
-    operation: 'list' | 'create' | 'read' | 'update' | 'delete'
-    config: Record<string, never> & { input?: ZodSchema }
-  }) {
-    const { operation, config } = options
-    const opConfig = this.getOperationConfig({ operation })
-    const hasInput = Boolean(
-      config.input &&
-        (opConfig.method === 'post' || opConfig.method === 'patch'),
-    )
-
-    const request = this.buildRequestObject({
-      includeId: opConfig.includeId,
-      hasInput,
-      config,
-    })
-    const successResponse = this.buildSuccessResponse({
-      operation,
-      status: opConfig.status,
-      hasData: opConfig.hasData,
-    })
-    const errorResponses = this.buildErrorResponses({
-      operation,
-      includeId: opConfig.includeId,
-      hasCommonErrors: opConfig.hasCommonErrors,
-    })
-
-    const summaries = {
-      list: `Get all ${this.name.toLowerCase()}`,
-      read: `Get a ${this.getSingularName()} by ID`,
-      create: `Create a new ${this.getSingularName()}`,
-      update: `Update a ${this.getSingularName()}`,
-      delete: `Delete a ${this.getSingularName()}`,
-    }
-
-    const routeConfig: RouteConfig = {
-      // biome-ignore lint/suspicious/noExplicitAny: Required for Hono method type compatibility
-      method: opConfig.method as any,
-      path: this.createPath({ includeId: opConfig.includeId }),
-      summary: summaries[operation],
-      request,
-      responses: {
-        ...successResponse,
-        ...errorResponses,
-        401: commonResponses[401],
-        500: commonResponses[500],
-      },
-    }
-
-    return createRoute({
-      ...routeConfig,
-      tags: [this.name],
-    })
-  }
-
-  /**
-   * Define a list endpoint that returns an array of resources
-   * @param handler - The handler function that returns an array of resources
-   * @returns The router instance for method chaining
-   */
-  public list(
-    handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-  ): this
-  /**
-   * Define a list endpoint with configuration options
-   * @param config - Route configuration options
-   * @param handler - The handler function that returns an array of resources
-   * @returns The router instance for method chaining
-   */
-  public list(
-    config: Record<string, never>,
-    handler: ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-  ): this
-  /**
-   * Define a list endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public list(
-    configOrHandler:
-      | Record<string, never>
-      | ListHandler<TResponse, TCollectionParams & DomainToParam<TDomain>>,
-    handler?: ListHandler<
-      TResponse,
-      TCollectionParams & DomainToParam<TDomain>
-    >,
-  ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
-    })
-    const definition = this.createDefinition({ operation: 'list', config })
-    // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
-    this.router.openapi(definition, async (c: any) => {
-      try {
-        const result = await actualHandler({
-          param: c.req.valid('param') as TCollectionParams &
-            DomainToParam<TDomain>,
-          request: { headers: c.req.raw.headers },
-        })
-        if (result instanceof NorteError) {
-          return this.createErrorResponse({ context: c, error: result })
-        }
-        const validatedData = z.array(this.schema).safeParse(result)
-        if (!validatedData.success) {
-          return c.json(
-            { error: 'INVALID_DATA', details: validatedData.error },
-            400,
-          )
-        }
-        return c.json({ data: validatedData.data }, 200)
-      } catch (error) {
-        return this.handleError({ context: c, error })
-      }
-    })
-    return this
-  }
-
-  /**
-   * Define a create endpoint that accepts input data and creates a new resource
-   * @param config - Route configuration including input schema validation
-   * @param handler - The handler function that creates and returns the new resource
-   * @returns The router instance for method chaining
-   */
-  public create<TInput extends ZodSchema>(
-    config: Record<string, never> & { input: TInput },
-    handler: InsertHandler<
-      TInput,
-      TResponse,
-      TCollectionParams & DomainToParam<TDomain>
-    >,
-  ) {
-    const definition = this.createDefinition({ operation: 'create', config })
-    // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
-    this.router.openapi(definition, async (c: any) => {
-      try {
-        const input = c.req.valid('json')
-        const validatedInput = config.input.safeParse(input)
-        if (!validatedInput.success) {
-          return c.json(
-            { error: 'INVALID_INPUT', details: validatedInput.error },
-            400,
-          )
-        }
-        const result = await handler({
-          input: validatedInput.data,
-          param: c.req.valid('param'),
-          request: { headers: c.req.raw.headers },
-        })
-        if (result instanceof NorteError) {
-          return this.createErrorResponse({ context: c, error: result })
-        }
-        const validatedData = this.validateResponseSchema({ data: result })
-        if (!validatedData.success) {
-          return c.json(
-            { error: 'INVALID_DATA', details: validatedData.error },
-            400,
-          )
-        }
-        return c.json({ data: validatedData.data }, 201)
-      } catch (error) {
-        return this.handleError({ context: c, error })
-      }
-    })
-    return this
-  }
-
-  /**
-   * Define an update endpoint that accepts input data and updates an existing resource by ID
-   * @param config - Route configuration including input schema validation
-   * @param handler - The handler function that updates and returns the modified resource
-   * @returns The router instance for method chaining
-   */
-  public update<TInput extends ZodSchema>(
-    config: Record<string, never> & { input: TInput },
-    handler: UpdateHandler<TInput, TResponse, TItemParams>,
-  ) {
-    const definition = this.createDefinition({ operation: 'update', config })
-    // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
-    this.router.openapi(definition, async (c: any) => {
-      try {
-        const input = c.req.valid('json')
-        const validatedInput = config.input.safeParse(input)
-        if (!validatedInput.success) {
-          return c.json(
-            { error: 'INVALID_INPUT', details: validatedInput.error },
-            400,
-          )
-        }
-        const result = await handler({
-          input: validatedInput.data,
-          param: c.req.valid('param') as TItemParams,
-          request: { headers: c.req.raw.headers },
-        })
-        if (result instanceof NorteError) {
-          return this.createErrorResponse({ context: c, error: result })
-        }
-        const validatedData = this.validateResponseSchema({ data: result })
-        if (!validatedData.success) {
-          return c.json(
-            { error: 'INVALID_DATA', details: validatedData.error },
-            400,
-          )
-        }
-        return c.json({ data: validatedData.data }, 200)
-      } catch (error) {
-        return this.handleError({ context: c, error })
-      }
-    })
-    return this
-  }
-
-  /**
-   * Define a read endpoint that retrieves a single resource by ID
-   * @param handler - The handler function that returns the requested resource
-   * @returns The router instance for method chaining
-   */
-  public read(handler: ReadHandler<TResponse, TItemParams>): this
-  /**
-   * Define a read endpoint with configuration options
-   * @param config - Route configuration options
-   * @param handler - The handler function that returns the requested resource
-   * @returns The router instance for method chaining
-   */
-  public read(
-    config: Record<string, never>,
-    handler: ReadHandler<TResponse, TItemParams>,
-  ): this
-  /**
-   * Define a read endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public read(
-    configOrHandler:
-      | Record<string, never>
-      | ReadHandler<TResponse, TItemParams>,
-    handler?: ReadHandler<TResponse, TItemParams>,
-  ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
-    })
-    const definition = this.createDefinition({ operation: 'read', config })
-    // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
-    this.router.openapi(definition, async (c: any) => {
-      try {
-        const result = await actualHandler({
-          param: c.req.valid('param') as TItemParams,
-          request: { headers: c.req.raw.headers },
-        })
-        if (result instanceof NorteError) {
-          return this.createErrorResponse({ context: c, error: result })
-        }
-        const validatedData = this.validateResponseSchema({ data: result })
-        if (!validatedData.success) {
-          return c.json(
-            { error: 'INVALID_DATA', details: validatedData.error },
-            400,
-          )
-        }
-        return c.json({ data: validatedData.data }, 200)
-      } catch (error) {
-        return this.handleError({ context: c, error })
-      }
-    })
-    return this
-  }
-
-  /**
-   * Define a delete endpoint that removes a resource by ID
-   * @param handler - The handler function that deletes the resource
-   * @returns The router instance for method chaining
-   */
-  public delete(handler: DeleteHandler<TItemParams>): this
-  /**
-   * Define a delete endpoint with configuration options
-   * @param config - Route configuration options
-   * @param handler - The handler function that deletes the resource
-   * @returns The router instance for method chaining
-   */
-  public delete(
-    config: Record<string, never>,
-    handler: DeleteHandler<TItemParams>,
-  ): this
-  /**
-   * Define a delete endpoint with overloaded parameters
-   * @param configOrHandler - Either configuration object or handler function
-   * @param handler - The handler function (if config was provided first)
-   * @returns The router instance for method chaining
-   */
-  public delete(
-    configOrHandler: Record<string, never> | DeleteHandler<TItemParams>,
-    handler?: DeleteHandler<TItemParams>,
-  ): this {
-    const { config, actualHandler } = this.resolveHandlerArgs({
-      configOrHandler,
-      handler,
-    })
-    const definition = this.createDefinition({ operation: 'delete', config })
-    // biome-ignore lint/suspicious/noExplicitAny: Bypass complex Hono typing
-    this.router.openapi(definition, async (c: any) => {
-      try {
-        const result = await actualHandler({
-          param: c.req.valid('param') as TItemParams,
-          request: { headers: c.req.raw.headers },
-        })
-        if (result instanceof NorteError) {
-          return this.createErrorResponse({ context: c, error: result })
-        }
-        return c.body(null, 204)
-      } catch (error) {
-        return this.handleError({ context: c, error })
-      }
-    })
-    return this
   }
 }

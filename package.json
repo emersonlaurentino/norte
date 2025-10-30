@@ -6,7 +6,10 @@
     "build": "vite build",
     "dev": "vite build --watch",
     "format": "biome format --write .",
-    "lint": "biome lint ."
+    "lint": "biome lint .",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "exports": {
     ".": "./dist/index.js"
@@ -23,15 +26,16 @@
     "url": "https://github.com/emersonlaurentino/norte"
   },
   "dependencies": {
-    "@hono/zod-openapi": "^1.1.4",
-    "@scalar/hono-api-reference": "^0.9.22",
-    "hono": "^4.10.3",
-    "zod": "^4.1.12"
+    "@sinclair/typebox": "^0.32.0",
+    "ajv": "^8.12.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.1",
+    "@vitest/coverage-v8": "^4.0.4",
+    "@vitest/ui": "^4.0.4",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
-    "vite-plugin-dts": "^4.5.4"
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.0.4"
   }
 }
