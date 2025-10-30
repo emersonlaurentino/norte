@@ -20,11 +20,11 @@ type CompiledRoute = {
 }
 
 export class Norte<TStore extends NorteStore = NorteStore> {
-  private compiledRoutes: Map<string, CompiledRoute[]> = new Map() // Key: HTTP method
-  private ajv: Ajv
+  #compiledRoutes: Map<string, CompiledRoute[]> = new Map() // Key: HTTP method
+  #ajv: Ajv
 
   constructor() {
-    this.ajv = new Ajv({
+    this.#ajv = new Ajv({
       coerceTypes: true,
       useDefaults: true,
       removeAdditional: true,
@@ -36,53 +36,53 @@ export class Norte<TStore extends NorteStore = NorteStore> {
 
     // Compile each route definition
     for (const definition of definitions) {
-      const compiledRoute = this.compileRoute(definition)
+      const compiledRoute = this.#compileRoute(definition)
       const method = definition.method.toUpperCase()
 
-      if (!this.compiledRoutes.has(method)) {
-        this.compiledRoutes.set(method, [])
+      if (!this.#compiledRoutes.has(method)) {
+        this.#compiledRoutes.set(method, [])
       }
-      const routes = this.compiledRoutes.get(method)
+      const routes = this.#compiledRoutes.get(method)
       if (routes) {
         routes.push(compiledRoute)
       }
     }
   }
 
-  private compileRoute(definition: RouteDefinition<TStore>): CompiledRoute {
+  #compileRoute(definition: RouteDefinition<TStore>): CompiledRoute {
     const { method, path, handler, options, router } = definition
 
     // 1. Build full path by walking parent chain
-    const fullPath = this.buildFullPath(router, path)
+    const fullPath = this.#buildFullPath(router, path)
 
     // 2. Split path into parts and extract parameter names
-    const { routeParts, paramNames } = this.splitPath(fullPath)
+    const { routeParts, paramNames } = this.#splitPath(fullPath)
 
     // 3. Pre-compile schemas
-    const validators = this.compileSchemas(options)
+    const validators = this.#compileSchemas(options)
 
     // 4. Compile response schema from router (if defined)
     const routerOptions = Router.getInternals(router).options
-    const responseValidator = this.compileResponseSchema(
+    const responseValidator = this.#compileResponseSchema(
       method,
       routerOptions.schema,
     )
 
     // 5. Merge hooks from router and route level
-    const beforeHooks = this.mergeHooks(
+    const beforeHooks = this.#mergeHooks(
       routerOptions.beforeHandler,
       options.beforeHandler,
     )
-    const afterHooks = this.mergeHooks(
+    const afterHooks = this.#mergeHooks(
       routerOptions.afterHandler,
       options.afterHandler,
     )
 
     // 6. Determine default status based on method
-    const defaultStatus = this.getDefaultStatus(method)
+    const defaultStatus = this.#getDefaultStatus(method)
 
     // 7. Create the "super function" - inlines entire lifecycle
-    const execute = this.createSuperFunction({
+    const execute = this.#createSuperFunction({
       method,
       path,
       paramNames,
@@ -103,7 +103,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
-  private buildFullPath(router: Router<TStore>, path: string): string {
+  #buildFullPath(router: Router<TStore>, path: string): string {
     const parts: string[] = []
 
     // Walk up the parent chain to build the full path
@@ -138,7 +138,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     return fullPath
   }
 
-  private splitPath(path: string): {
+  #splitPath(path: string): {
     routeParts: string[]
     paramNames: string[]
   } {
@@ -156,7 +156,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     return { routeParts, paramNames }
   }
 
-  private match(
+  #match(
     routeParts: string[],
     pathParts: string[],
     paramNames: string[],
@@ -193,19 +193,19 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     return params
   }
 
-  private compileSchemas(options: RouteDefinition<TStore>['options']): {
+  #compileSchemas(options: RouteDefinition<TStore>['options']): {
     body?: ValidateFunction | undefined
     query?: ValidateFunction | undefined
     param?: ValidateFunction | undefined
   } {
     return {
-      body: options.body ? this.ajv.compile(options.body) : undefined,
-      query: options.query ? this.ajv.compile(options.query) : undefined,
-      param: options.param ? this.ajv.compile(options.param) : undefined,
+      body: options.body ? this.#ajv.compile(options.body) : undefined,
+      query: options.query ? this.#ajv.compile(options.query) : undefined,
+      param: options.param ? this.#ajv.compile(options.param) : undefined,
     }
   }
 
-  private compileResponseSchema(
+  #compileResponseSchema(
     method: string,
     schema: NorteSchema,
   ): ValidateFunction {
@@ -215,18 +215,18 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       // Caso contrário, é um .list() e precisa ser array
       // Vamos verificar isso no createSuperFunction baseado no path
       // Por enquanto, vamos retornar o schema compilado direto
-      return this.ajv.compile(schema)
+      return this.#ajv.compile(schema)
     }
 
     // Para outros métodos (POST/PATCH), valida o schema direto
-    return this.ajv.compile(schema)
+    return this.#ajv.compile(schema)
   }
 
-  private mergeHooks<T>(routerHooks?: T[], routeHooks?: T[]): T[] {
+  #mergeHooks<T>(routerHooks?: T[], routeHooks?: T[]): T[] {
     return [...(routerHooks || []), ...(routeHooks || [])]
   }
 
-  private getDefaultStatus(method: string): number {
+  #getDefaultStatus(method: string): number {
     switch (method.toUpperCase()) {
       case 'POST':
         return 201
@@ -237,7 +237,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
-  private createSuperFunction(config: {
+  #createSuperFunction(config: {
     method: string
     path: string
     paramNames: string[]
@@ -273,7 +273,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     ): Promise<Response> => {
       try {
         // Create logger (simple console logger for now)
-        const log: NorteLogger = this.createLogger()
+        const log: NorteLogger = this.#createLogger()
 
         // Parse URL
         const url = new URL(req.url)
@@ -322,7 +322,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           if (!validators.body(bodyData)) {
             throw new NorteError(
               'INVALID_INPUT',
-              `Body validation failed: ${this.ajv.errorsText(validators.body.errors)}`,
+              `Body validation failed: ${this.#ajv.errorsText(validators.body.errors)}`,
             )
           }
         }
@@ -331,7 +331,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           if (!validators.query(query)) {
             throw new NorteError(
               'INVALID_INPUT',
-              `Query validation failed: ${this.ajv.errorsText(validators.query.errors)}`,
+              `Query validation failed: ${this.#ajv.errorsText(validators.query.errors)}`,
             )
           }
         }
@@ -340,7 +340,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           if (!validators.param(param)) {
             throw new NorteError(
               'INVALID_INPUT',
-              `Param validation failed: ${this.ajv.errorsText(validators.param.errors)}`,
+              `Param validation failed: ${this.#ajv.errorsText(validators.param.errors)}`,
             )
           }
         }
@@ -388,7 +388,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
               if (!responseValidator(item)) {
                 throw new NorteError(
                   'INVALID_OUTPUT',
-                  `Response validation failed for item ${i}: ${this.ajv.errorsText(responseValidator.errors)}`,
+                  `Response validation failed for item ${i}: ${this.#ajv.errorsText(responseValidator.errors)}`,
                 )
               }
             }
@@ -397,7 +397,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
             if (!responseValidator(result)) {
               throw new NorteError(
                 'INVALID_OUTPUT',
-                `Response validation failed: ${this.ajv.errorsText(responseValidator.errors)}`,
+                `Response validation failed: ${this.#ajv.errorsText(responseValidator.errors)}`,
               )
             }
           }
@@ -439,12 +439,12 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         })
       } catch (err) {
         // Handle errors
-        return this.handleError(err)
+        return this.#handleError(err)
       }
     }
   }
 
-  private createLogger(): NorteLogger {
+  #createLogger(): NorteLogger {
     const createLogFn = (level: string) => (obj: object, msg?: string) => {
       console[level as 'log'](msg || '', obj)
     }
@@ -454,13 +454,13 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       warn: createLogFn('warn'),
       error: createLogFn('error'),
       debug: createLogFn('log'),
-      child: (_bindings: object) => this.createLogger(), // Simplified for now
+      child: (_bindings: object) => this.#createLogger(), // Simplified for now
     }
   }
 
-  private handleError(err: unknown): Response {
+  #handleError(err: unknown): Response {
     if (err instanceof NorteError) {
-      const statusCode = this.errorCodeToStatus(err.code)
+      const statusCode = this.#errorCodeToStatus(err.code)
       return new Response(
         JSON.stringify({
           error: err.code,
@@ -487,7 +487,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     )
   }
 
-  private errorCodeToStatus(code: string): number {
+  #errorCodeToStatus(code: string): number {
     const statusMap: Record<string, number> = {
       INVALID_INPUT: 400,
       INVALID_OUTPUT: 500, // Erro interno - response não conforme com schema
@@ -506,7 +506,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     const pathname = url.pathname
 
     // Get routes for this HTTP method
-    const routes = this.compiledRoutes.get(method)
+    const routes = this.#compiledRoutes.get(method)
     if (!routes) {
       return new Response(
         JSON.stringify({
@@ -525,7 +525,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
 
     // Fast matching through routes for this method
     for (const route of routes) {
-      const params = this.match(route.routeParts, pathParts, route.paramNames)
+      const params = this.#match(route.routeParts, pathParts, route.paramNames)
       if (params !== null) {
         // Match found! Execute
         return await route.execute(req, params)

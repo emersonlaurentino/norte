@@ -123,35 +123,35 @@ export class Router<TStore extends NorteStore = NorteStore> {
     options: RouteOptions<TStore>,
     handler: ListHandler<TStore>,
   ): this {
-    return this.addDefinition('GET', '', options, handler)
+    return this.#addDefinition('GET', '', options, handler)
   }
 
   public create(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
-    return this.addDefinition('POST', '', options, handler)
+    return this.#addDefinition('POST', '', options, handler)
   }
 
   public read(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
-    return this.addDefinition(
+    return this.#addDefinition(
       'GET',
-      `/:${this.getDomainId()}`,
+      `/:${this.#getDomainId()}`,
       options,
       handler,
     )
   }
 
   public update(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
-    return this.addDefinition(
+    return this.#addDefinition(
       'PATCH',
-      `/:${this.getDomainId()}`,
+      `/:${this.#getDomainId()}`,
       options,
       handler,
     )
   }
 
   public delete(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
-    return this.addDefinition(
+    return this.#addDefinition(
       'DELETE',
-      `/:${this.getDomainId()}`,
+      `/:${this.#getDomainId()}`,
       options,
       handler,
     )
@@ -163,10 +163,10 @@ export class Router<TStore extends NorteStore = NorteStore> {
     options: RouteOptions<TStore>,
     handler: Handler<TStore>,
   ): this {
-    return this.addDefinition(method, path, options, handler)
+    return this.#addDefinition(method, path, options, handler)
   }
 
-  private addDefinition(
+  #addDefinition(
     method: string,
     path: string,
     options: RouteOptions<TStore>,
@@ -182,7 +182,7 @@ export class Router<TStore extends NorteStore = NorteStore> {
     return this
   }
 
-  private getDomainId(): string {
+  #getDomainId(): string {
     return this.domain.endsWith('s')
       ? `${this.domain.slice(0, -1)}Id`
       : `${this.domain}Id`
