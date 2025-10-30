@@ -99,12 +99,13 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       // Add the domain to the path
       parts.unshift(domain)
 
-      // If there's a parent, add the domain ID parameter
+      // If there's a parent, add the PARENT's domain ID parameter
       if (parent) {
-        const domainId = domain.endsWith('s')
-          ? `${domain.slice(0, -1)}Id`
-          : `${domain}Id`
-        parts.unshift(`:${domainId}`)
+        const parentDomain = Router.getInternals(parent).domain
+        const parentDomainId = parentDomain.endsWith('s')
+          ? `${parentDomain.slice(0, -1)}Id`
+          : `${parentDomain}Id`
+        parts.unshift(`:${parentDomainId}`)
       }
 
       currentRouter = parent as Router<TStore> | null
