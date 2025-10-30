@@ -270,6 +270,78 @@ const userSchema = t.Object({
 })
 ```
 
+## 🔢 Native Versioning
+
+Norte includes native API versioning that automatically prefixes all routes:
+
+```typescript
+// Version 1 (default) - version é OPCIONAL
+const usersV1 = new Router('users', { 
+  schema: t.Object({
+    id: t.String(),
+    name: t.String()
+  })
+  // version: 1 <- OPCIONAL! Se omitido, usa version 1
+})
+usersV1.list({}, async () => [{ id: '1', name: 'Alice' }])
+// Generates: GET /v1/users
+
+// Version 2 with additional fields
+const usersV2 = new Router('users', { 
+  schema: t.Object({
+    id: t.String(),
+    name: t.String(),
+    email: t.String(),
+    createdAt: t.String()
+  }),
+  version: 2
+})
+usersV2.list({}, async () => [
+  { id: '1', name: 'Alice', email: 'alice@example.com', createdAt: '2025-01-01' }
+])
+// Generates: GET /v2/users
+
+// Register both versions
+app.register(usersV1)
+app.register(usersV2)
+```
+
+### Version Features
+
+- **Optional Field**: `version` is optional - defaults to `1` when not specified
+- **Automatic Prefixing**: All routes get `/v{number}/` prefix
+- **Multiple Versions**: Support multiple versions of the same domain simultaneously
+- **Nested Routers**: Child routers inherit parent's version
+- **Consistent**: Version is applied to all CRUD operations (.list, .create, .read, .update, .delete, .custom)
+
+### Common Usage
+
+Most APIs start without specifying version (defaults to v1):
+
+```typescript
+// Simple API - version defaults to 1
+const users = new Router('users', { schema: userSchema })
+const products = new Router('products', { schema: productSchema })
+
+// These generate: /v1/users and /v1/products
+app.register(users)
+app.register(products)
+```
+
+### Version Strategy
+
+```typescript
+// Gradual migration strategy
+const productsV1 = new Router('products', { schema: schemaV1, version: 1 })
+const productsV2 = new Router('products', { schema: schemaV2, version: 2 })
+const productsV3 = new Router('products', { schema: schemaV3, version: 3 })
+
+// All versions coexist
+app.register(productsV1)  // /v1/products
+app.register(productsV2)  // /v2/products
+app.register(productsV3)  // /v3/products
+```
+
 ## 🎣 Lifecycle Hooks
 
 ### Before Handle Hooks
