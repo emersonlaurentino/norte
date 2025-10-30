@@ -30,7 +30,7 @@ describe('Schema Validation', () => {
     app.register(usersRouter)
 
     // Invalid: name too short
-    const req1 = new Request('http://localhost/users', {
+    const req1 = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'ab', email: 'test@example.com' }),
@@ -43,7 +43,7 @@ describe('Schema Validation', () => {
     expect(data1.message).toContain('Body validation failed')
 
     // Invalid: missing required field
-    const req2 = new Request('http://localhost/users', {
+    const req2 = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Alice' }),
@@ -79,14 +79,14 @@ describe('Schema Validation', () => {
     app.register(usersRouter)
 
     // Valid query params
-    const req1 = new Request('http://localhost/users?limit=10&page=1', {
+    const req1 = new Request('http://localhost/v1/users?limit=10&page=1', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
     // Invalid: limit too high
-    const req2 = new Request('http://localhost/users?limit=200&page=1', {
+    const req2 = new Request('http://localhost/v1/users?limit=200&page=1', {
       method: 'GET',
     })
     const res2 = await app.fetch(req2)
@@ -121,12 +121,12 @@ describe('Schema Validation', () => {
     app.register(usersRouter)
 
     // Valid: numeric ID
-    const req1 = new Request('http://localhost/users/123', { method: 'GET' })
+    const req1 = new Request('http://localhost/v1/users/123', { method: 'GET' })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
     // Invalid: non-numeric ID
-    const req2 = new Request('http://localhost/users/abc', { method: 'GET' })
+    const req2 = new Request('http://localhost/v1/users/abc', { method: 'GET' })
     const res2 = await app.fetch(req2)
     expect(res2.status).toBe(400)
     const data2 = await res2.json()
@@ -158,7 +158,7 @@ describe('Schema Validation', () => {
     app.register(usersRouter)
 
     // Query params come as strings, but should be coerced to number
-    const req = new Request('http://localhost/users?limit=20', {
+    const req = new Request('http://localhost/v1/users?limit=20', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -189,7 +189,7 @@ describe('Schema Validation', () => {
     app.register(usersRouter)
 
     // No query params provided, should use defaults
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
     expect(res.status).toBe(200)
   })
@@ -209,7 +209,7 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -236,7 +236,7 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -262,7 +262,7 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: 'invalid json{',

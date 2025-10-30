@@ -37,7 +37,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=1&limit=10', {
+    const req = new Request('http://localhost/v1/users?page=1&limit=10', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -71,7 +71,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=2&limit=10', {
+    const req = new Request('http://localhost/v1/users?page=2&limit=10', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -104,7 +104,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -145,7 +145,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=5&limit=25', {
+    const req = new Request('http://localhost/v1/users?page=5&limit=25', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -178,21 +178,21 @@ describe('Pagination', () => {
     app.register(usersRouter)
 
     // Invalid: page less than 1
-    const req1 = new Request('http://localhost/users?page=0&limit=10', {
+    const req1 = new Request('http://localhost/v1/users?page=0&limit=10', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(400)
 
     // Invalid: limit greater than 100
-    const req2 = new Request('http://localhost/users?page=1&limit=200', {
+    const req2 = new Request('http://localhost/v1/users?page=1&limit=200', {
       method: 'GET',
     })
     const res2 = await app.fetch(req2)
     expect(res2.status).toBe(400)
 
     // Valid
-    const req3 = new Request('http://localhost/users?page=1&limit=50', {
+    const req3 = new Request('http://localhost/v1/users?page=1&limit=50', {
       method: 'GET',
     })
     const res3 = await app.fetch(req3)
@@ -234,7 +234,7 @@ describe('Pagination', () => {
     app.register(usersRouter)
 
     const req = new Request(
-      'http://localhost/users?pageNumber=3&pageSize=5',
+      'http://localhost/v1/users?pageNumber=3&pageSize=5',
       {
         method: 'GET',
       },
@@ -276,7 +276,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=1&limit=10', {
+    const req = new Request('http://localhost/v1/users?page=1&limit=10', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -310,7 +310,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=100&limit=10', {
+    const req = new Request('http://localhost/v1/users?page=100&limit=10', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -347,7 +347,7 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users?page=3&limit=15', {
+    const req = new Request('http://localhost/v1/users?page=3&limit=15', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -391,7 +391,7 @@ describe('Pagination', () => {
     app.register(usersRouter)
 
     const req = new Request(
-      'http://localhost/users?page=2&limit=20&search=john&status=active',
+      'http://localhost/v1/users?page=2&limit=20&search=john&status=active',
       { method: 'GET' },
     )
     const res = await app.fetch(req)

@@ -59,7 +59,7 @@ describe('Public API', () => {
 
       app.register(router)
 
-      const req = new Request('http://localhost/users', { method: 'GET' })
+      const req = new Request('http://localhost/v1/users', { method: 'GET' })
       const res = await app.fetch(req)
 
       expect(typeof app.fetch).toBe('function')

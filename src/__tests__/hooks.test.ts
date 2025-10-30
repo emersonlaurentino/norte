@@ -42,7 +42,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'GET',
       headers: { authorization: 'Bearer token123' },
     })
@@ -79,7 +79,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(401)
@@ -115,7 +115,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -145,7 +145,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(202)
@@ -184,7 +184,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -222,7 +222,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -269,7 +269,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -312,7 +312,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -345,7 +345,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -381,7 +381,7 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)

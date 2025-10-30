@@ -21,7 +21,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -57,7 +57,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Charlie' }),
@@ -86,7 +86,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/456', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/456', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -118,7 +118,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/789', {
+    const req = new Request('http://localhost/v1/users/789', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Updated Alice' }),
@@ -145,7 +145,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/999', { method: 'DELETE' })
+    const req = new Request('http://localhost/v1/users/999', { method: 'DELETE' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(204)
@@ -165,7 +165,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/nonexistent', { method: 'GET' })
+    const req = new Request('http://localhost/v1/nonexistent', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(404)
@@ -188,7 +188,7 @@ describe('Basic CRUD Operations', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'PUT' })
+    const req = new Request('http://localhost/v1/users', { method: 'PUT' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(404)

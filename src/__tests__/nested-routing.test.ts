@@ -40,14 +40,14 @@ describe('Nested Routing', () => {
     app.register(productsRouter)
 
     // Test parent route
-    const req1 = new Request('http://localhost/stores', { method: 'GET' })
+    const req1 = new Request('http://localhost/v1/stores', { method: 'GET' })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
     const data1 = await res1.json()
     expect(data1).toEqual([{ id: '1', name: 'Store 1' }])
 
     // Test nested route
-    const req2 = new Request('http://localhost/stores/store123/products', {
+    const req2 = new Request('http://localhost/v1/stores/store123/products', {
       method: 'GET',
     })
     const res2 = await app.fetch(req2)
@@ -105,7 +105,7 @@ describe('Nested Routing', () => {
     app.register(locationsRouter)
 
     const req = new Request(
-      'http://localhost/countries/brazil/cities/sao-paulo/locations',
+      'http://localhost/v1/countries/brazil/cities/sao-paulo/locations',
       { method: 'GET' },
     )
     const res = await app.fetch(req)
@@ -145,7 +145,7 @@ describe('Nested Routing', () => {
 
     app.register(productsRouter)
 
-    const req = new Request('http://localhost/stores/s1/products/p1', {
+    const req = new Request('http://localhost/v1/stores/s1/products/p1', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -189,7 +189,7 @@ describe('Nested Routing', () => {
 
     app.register(productsRouter)
 
-    const req = new Request('http://localhost/stores/s1/products', {
+    const req = new Request('http://localhost/v1/stores/s1/products', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'New Product' }),
@@ -238,7 +238,7 @@ describe('Nested Routing', () => {
 
     app.register(productsRouter)
 
-    const req = new Request('http://localhost/stores/s1/products/p1', {
+    const req = new Request('http://localhost/v1/stores/s1/products/p1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Updated Product' }),
@@ -278,7 +278,7 @@ describe('Nested Routing', () => {
 
     app.register(productsRouter)
 
-    const req = new Request('http://localhost/stores/s1/products/p1', {
+    const req = new Request('http://localhost/v1/stores/s1/products/p1', {
       method: 'DELETE',
     })
     const res = await app.fetch(req)
@@ -309,7 +309,7 @@ describe('Nested Routing', () => {
 
     app.register(postsRouter)
 
-    const req = new Request('http://localhost/users/user123/posts', {
+    const req = new Request('http://localhost/v1/users/user123/posts', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -344,7 +344,7 @@ describe('Nested Routing', () => {
 
     app.register(employeesRouter)
 
-    const req = new Request('http://localhost/company/comp123/employees', {
+    const req = new Request('http://localhost/v1/company/comp123/employees', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -386,14 +386,14 @@ describe('Nested Routing', () => {
     app.register(productsRouter)
 
     // Valid: numeric storeId
-    const req1 = new Request('http://localhost/stores/123/products', {
+    const req1 = new Request('http://localhost/v1/stores/123/products', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
     // Invalid: non-numeric storeId
-    const req2 = new Request('http://localhost/stores/abc/products', {
+    const req2 = new Request('http://localhost/v1/stores/abc/products', {
       method: 'GET',
     })
     const res2 = await app.fetch(req2)

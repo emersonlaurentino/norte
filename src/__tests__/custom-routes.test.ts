@@ -19,7 +19,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/search?q=test', {
+    const req = new Request('http://localhost/v1/users/search?q=test', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -53,7 +53,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/bulk', {
+    const req = new Request('http://localhost/v1/users/bulk', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ items: ['item1', 'item2', 'item3'] }),
@@ -89,7 +89,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/sync', {
+    const req = new Request('http://localhost/v1/users/sync', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ data: 'test-data' }),
@@ -116,7 +116,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/user123/activate', {
+    const req = new Request('http://localhost/v1/users/user123/activate', {
       method: 'POST',
     })
     const res = await app.fetch(req)
@@ -146,7 +146,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/csv', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/csv', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -172,7 +172,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/webhook', {
+    const req = new Request('http://localhost/v1/users/webhook', {
       method: 'POST',
     })
     const res = await app.fetch(req)
@@ -205,7 +205,7 @@ describe('Custom Routes', () => {
     app.register(usersRouter)
 
     // Valid format
-    const req1 = new Request('http://localhost/users/export', {
+    const req1 = new Request('http://localhost/v1/users/export', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ format: 'json' }),
@@ -214,7 +214,7 @@ describe('Custom Routes', () => {
     expect(res1.status).toBe(201) // POST defaults to 201
 
     // Invalid format
-    const req2 = new Request('http://localhost/users/export', {
+    const req2 = new Request('http://localhost/v1/users/export', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ format: 'xml' }),
@@ -253,7 +253,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/special', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/special', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -299,7 +299,7 @@ describe('Custom Routes', () => {
 
     app.register(productsRouter)
 
-    const req = new Request('http://localhost/stores/s1/products/import', {
+    const req = new Request('http://localhost/v1/stores/s1/products/import', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ count: 10 }),
@@ -328,7 +328,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/stats/summary', {
+    const req = new Request('http://localhost/v1/users/stats/summary', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -352,7 +352,7 @@ describe('Custom Routes', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/ping', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/ping', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)

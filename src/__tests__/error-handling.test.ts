@@ -23,7 +23,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/nonexistent', {
+    const req = new Request('http://localhost/v1/users/nonexistent', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -50,7 +50,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(401)
@@ -75,7 +75,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', {
+    const req = new Request('http://localhost/v1/users/1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'New Name' }),
@@ -109,7 +109,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'test@example.com' }),
@@ -141,7 +141,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -166,7 +166,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -196,7 +196,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -231,7 +231,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(401)
@@ -257,7 +257,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(404)
@@ -293,7 +293,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Alice' }), // Missing email
@@ -326,7 +326,7 @@ describe('Error Handling', () => {
     app.register(usersRouter)
 
     // Can't coerce "notanumber" to number
-    const req = new Request('http://localhost/users?limit=notanumber', {
+    const req = new Request('http://localhost/v1/users?limit=notanumber', {
       method: 'GET',
     })
     const res = await app.fetch(req)
@@ -360,7 +360,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(401)
@@ -398,7 +398,7 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)

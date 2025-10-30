@@ -23,7 +23,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -54,7 +54,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -82,7 +82,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -107,7 +107,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -132,7 +132,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -159,7 +159,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -190,7 +190,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Bob' }),
@@ -222,7 +222,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', {
+    const req = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Bob' }),
@@ -256,7 +256,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', {
+    const req = new Request('http://localhost/v1/users/1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Updated Name' }),
@@ -288,7 +288,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', {
+    const req = new Request('http://localhost/v1/users/1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Updated Name' }),
@@ -318,7 +318,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -357,7 +357,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -401,7 +401,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -428,7 +428,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -453,7 +453,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
@@ -480,7 +480,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users/1', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(500)
@@ -502,7 +502,7 @@ describe('Response Schema Validation', () => {
 
     app.register(usersRouter)
 
-    const req = new Request('http://localhost/users', { method: 'GET' })
+    const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 
     expect(res.status).toBe(200)
