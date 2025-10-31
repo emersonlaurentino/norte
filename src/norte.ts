@@ -24,6 +24,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
   #openApiGenerator: OpenAPIGenerator
   #errorHandler: ErrorHandler
   #routeCompiler: RouteCompiler
+  #scalarEnabled: boolean
 
   constructor(options: NorteOptions = {}) {
     this.#logger = new Logger(options.logger, options.telemetry)
@@ -32,6 +33,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     this.#pathBuilder = new PathBuilder()
     this.#openApiGenerator = new OpenAPIGenerator(options.openapi)
     this.#errorHandler = new ErrorHandler()
+    this.#scalarEnabled = options.openapi?.ui !== false
 
     this.#routeCompiler = new RouteCompiler(
       this.#validator,
@@ -147,6 +149,32 @@ export class Norte<TStore extends NorteStore = NorteStore> {
         headers: {
           'content-type': 'application/json',
           'cache-control': 'public, max-age=3600',
+        },
+      })
+    }
+
+    // Scalar UI na raiz (não pode ser sobrescrito)
+    if (method === 'GET' && pathname === '/' && this.#scalarEnabled) {
+      const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script
+      id="api-reference"
+      data-url="/openapi.json"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`
+
+      return new Response(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
         },
       })
     }

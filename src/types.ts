@@ -123,6 +123,7 @@ export type NorteOptions = {
     version?: string
     description?: string
     servers?: OpenAPIServerConfig[]
+    ui?: boolean
   }
 }
 
