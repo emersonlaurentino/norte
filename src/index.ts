@@ -11,6 +11,7 @@ export type {
   CompiledRoute,
   Handler,
   HandlerContext,
+  HttpMethod,
   IValidator,
   ListHandler,
   LoggerOptions,

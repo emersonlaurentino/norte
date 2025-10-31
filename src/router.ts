@@ -1,5 +1,6 @@
 import type {
   Handler,
+  HttpMethod,
   ListHandler,
   NorteStore,
   RouteOptions,
@@ -96,7 +97,7 @@ export class Router<TStore extends NorteStore = NorteStore> {
   }
 
   public custom(
-    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | string,
+    method: HttpMethod,
     path: string,
     options: RouteOptions<TStore>,
     handler: Handler<TStore>,

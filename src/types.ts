@@ -5,6 +5,9 @@ import type { ValidateFunction } from 'ajv'
 export type NorteStore = Record<string, unknown>
 export type NorteSchema = TSchema
 
+// HTTP Method with autocomplete
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | (string & {})
+
 // Logger
 export interface NorteLogger {
   info(obj: object, msg?: string): void
