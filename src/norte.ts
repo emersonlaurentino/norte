@@ -66,38 +66,11 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
-  /**
-   * Adiciona uma rota HTTP raw (sem validação, sem domínio)
-   *
-   * Use para casos onde você precisa controle total do Request/Response:
-   * - Documentação (Scalar, Swagger)
-   * - Health checks e métricas
-   * - Webhooks externos
-   * - Integrações com libs externas (Better-Auth, etc)
-   *
-   * Suporta wildcards:
-   * - "*" como método = todos os métodos HTTP
-   * - "*" no path = captura qualquer path
-   *
-   * @example
-   * // Rota simples
-   * app.raw("GET", "/docs", () => Scalar({ url: "/openapi.json" }))
-   *
-   * // Wildcard de método (todos os métodos HTTP)
-   * app.raw("*", "/webhooks/stripe", handleStripe)
-   *
-   * // Wildcard de path (sub-aplicação)
-   * app.raw("*", "/api/auth/*", (req) => betterAuth.handler(req))
-   *
-   * // Wildcard total (captura tudo)
-   * app.raw("*", "*", customFallback)
-   */
   public raw(
     method: HttpMethod | '*',
     path: string | '*',
     handler: (req: Request) => Response | Promise<Response>,
   ): this {
-    // Normaliza path: "*" vira "/*" para o matcher
     const normalizedPath = path === '*' ? '/*' : path
     const { routeParts, paramNames } =
       this.#routeMatcher.splitPath(normalizedPath)
@@ -119,7 +92,6 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       },
     }
 
-    // Determina quais métodos HTTP registrar
     const methods =
       method === '*'
         ? ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -141,19 +113,22 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     const url = new URL(req.url)
     const pathname = url.pathname
 
-    // OpenAPI endpoint tem prioridade máxima
     if (method === 'GET' && pathname === '/openapi.json') {
-      const openApiDoc = this.#openApiGenerator.generateDocument()
+      const openApiDoc = this.#openApiGenerator.generateDocument(req)
+      const hasCustomServers = this.#openApiGenerator.hasCustomServers()
+      const cacheControl = hasCustomServers
+        ? 'public, max-age=3600'
+        : 'no-store, no-cache, must-revalidate'
+
       return new Response(JSON.stringify(openApiDoc, null, 2), {
         status: 200,
         headers: {
           'content-type': 'application/json',
-          'cache-control': 'public, max-age=3600',
+          'cache-control': cacheControl,
         },
       })
     }
 
-    // Scalar UI na raiz (não pode ser sobrescrito)
     if (method === 'GET' && pathname === '/' && this.#scalarEnabled) {
       const html = `<!DOCTYPE html>
 <html>
@@ -181,7 +156,6 @@ export class Norte<TStore extends NorteStore = NorteStore> {
 
     const pathParts = this.#routeMatcher.splitPathname(pathname)
 
-    // Prioridade 1: Tentar raw routes primeiro
     const rawRoutes = this.#rawRoutes.get(method)
     if (rawRoutes) {
       for (const route of rawRoutes) {
@@ -196,7 +170,6 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       }
     }
 
-    // Prioridade 2: Tentar routers (rotas de domínio)
     const routes = this.#compiledRoutes.get(method)
     if (routes) {
       for (const route of routes) {
