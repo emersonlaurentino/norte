@@ -254,18 +254,26 @@ describe('Native Versioning', () => {
       version: 2,
     })
 
-    usersRouter.custom('POST', '/search', {}, async () => {
-      return { id: '1', name: 'Found User' }
+    usersRouter.create({}, async () => {
+      return { id: '1', name: 'Created User' }
     })
 
     app.register(usersRouter)
+
+    // Add a raw route that works with versioned path
+    app.raw('POST', '/v2/users/search', async () => {
+      return new Response(
+        JSON.stringify({ id: '1', name: 'Found User' }),
+        { headers: { 'content-type': 'application/json' } },
+      )
+    })
 
     const req = new Request('http://localhost/v2/users/search', {
       method: 'POST',
     })
     const res = await app.fetch(req)
 
-    expect(res.status).toBe(201) // POST returns 201 by default
+    expect(res.status).toBe(200)
     const data = await res.json()
     expect(data).toEqual({ id: '1', name: 'Found User' })
   })

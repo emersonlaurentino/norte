@@ -6,7 +6,7 @@ export type NorteStore = Record<string, unknown>
 export type NorteSchema = TSchema
 
 // HTTP Method with autocomplete
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | (string & {})
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | '*' | (string & {})
 
 // Logger
 export interface NorteLogger {
@@ -95,7 +95,7 @@ export type ListHandler<T extends NorteStore = NorteStore> = (
 
 // Router
 export type RouterOptions<T extends NorteStore = NorteStore> = {
-  schema: NorteSchema
+  schema?: NorteSchema
   version?: number
   beforeHandler?: BeforeHook<T>[]
   afterHandler?: AfterHook<T>[]

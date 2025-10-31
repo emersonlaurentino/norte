@@ -51,10 +51,9 @@ export class RouteCompiler {
     const validators = this.#compileSchemas(options)
 
     const routerOptions = Router.getInternals(router).options
-    const responseValidator = this.#compileResponseSchema(
-      method,
-      routerOptions.schema,
-    )
+    const responseValidator = routerOptions.schema 
+      ? this.#compileResponseSchema(method, routerOptions.schema)
+      : undefined
 
     const beforeHooks = this.#mergeHooks(
       routerOptions.beforeHandler,
@@ -133,7 +132,7 @@ export class RouteCompiler {
       query?: ValidateFunction | undefined
       param?: ValidateFunction | undefined
     }
-    responseValidator: ValidateFunction
+    responseValidator: ValidateFunction | undefined
     beforeHooks: BeforeHook<TStore>[]
     handler: Handler<TStore>
     afterHooks: AfterHook<TStore>[]
@@ -251,28 +250,30 @@ export class RouteCompiler {
         const result = await handler(handlerContext)
 
         if (!(result instanceof Response)) {
-          if (isListMethod) {
-            if (!Array.isArray(result)) {
-              throw new NorteError(
-                'INVALID_OUTPUT',
-                'List method must return an array',
-              )
-            }
-            for (let i = 0; i < result.length; i++) {
-              const item = result[i]
-              if (!responseValidator(item)) {
+          if (responseValidator) {
+            if (isListMethod) {
+              if (!Array.isArray(result)) {
                 throw new NorteError(
                   'INVALID_OUTPUT',
-                  `Response validation failed for item ${i}: ${this.#validator.getErrorText(responseValidator)}`,
+                  'List method must return an array',
                 )
               }
-            }
-          } else {
-            if (!responseValidator(result)) {
-              throw new NorteError(
-                'INVALID_OUTPUT',
-                `Response validation failed: ${this.#validator.getErrorText(responseValidator)}`,
-              )
+              for (let i = 0; i < result.length; i++) {
+                const item = result[i]
+                if (!responseValidator(item)) {
+                  throw new NorteError(
+                    'INVALID_OUTPUT',
+                    `Response validation failed for item ${i}: ${this.#validator.getErrorText(responseValidator)}`,
+                  )
+                }
+              }
+            } else {
+              if (!responseValidator(result)) {
+                throw new NorteError(
+                  'INVALID_OUTPUT',
+                  `Response validation failed: ${this.#validator.getErrorText(responseValidator)}`,
+                )
+              }
             }
           }
         }

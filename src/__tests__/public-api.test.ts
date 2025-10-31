@@ -30,7 +30,7 @@ describe('Public API', () => {
       })
 
       // Expected public methods
-      const expectedPublicMethods = ['register', 'fetch']
+      const expectedPublicMethods = ['register', 'fetch', 'raw']
 
       // Check that only expected methods are public
       expect(publicMethods.sort()).toEqual(expectedPublicMethods.sort())
@@ -99,7 +99,6 @@ describe('Public API', () => {
       // Expected public methods
       const expectedPublicMethods = [
         'create',
-        'custom',
         'list',
         'read',
         'delete',
@@ -123,7 +122,6 @@ describe('Public API', () => {
       expect(typeof router.read).toBe('function')
       expect(typeof router.update).toBe('function')
       expect(typeof router.delete).toBe('function')
-      expect(typeof router.custom).toBe('function')
 
       // Test method chaining
       const result = router
@@ -132,7 +130,6 @@ describe('Public API', () => {
         .read({}, async () => ({ id: '1', name: 'test' }))
         .update({}, async () => ({ id: '1', name: 'test' }))
         .delete({}, async () => ({ id: '1', name: 'test' }))
-        .custom('GET', '/custom', {}, async () => ({ id: '1', name: 'test' }))
 
       expect(result).toBe(router)
     })

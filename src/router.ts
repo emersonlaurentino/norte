@@ -48,7 +48,10 @@ export class Router<TStore extends NorteStore = NorteStore> {
       this.#parent = parentOrDomain
       this.#domain = domainOrOptions as string
       if (!options) {
-        throw new Error('RouterOptions with schema is required.')
+        throw new Error('RouterOptions is required for nested routers.')
+      }
+      if (!options.schema) {
+        throw new Error('Schema is required for nested routers.')
       }
       this.#options = options
     }
@@ -94,15 +97,6 @@ export class Router<TStore extends NorteStore = NorteStore> {
       options,
       handler,
     )
-  }
-
-  public custom(
-    method: HttpMethod,
-    path: string,
-    options: RouteOptions<TStore>,
-    handler: Handler<TStore>,
-  ): this {
-    return this.#addDefinition(method, path, options, handler)
   }
 
   #addDefinition(

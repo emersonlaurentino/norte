@@ -6,10 +6,16 @@ import { PathBuilder } from './services/path-builder'
 import { RouteCompiler } from './services/route-compiler'
 import { RouteMatcher } from './services/route-matcher'
 import { Validator } from './services/validator'
-import type { CompiledRoute, NorteOptions, NorteStore } from './types'
+import type {
+  CompiledRoute,
+  HttpMethod,
+  NorteOptions,
+  NorteStore,
+} from './types'
 
 export class Norte<TStore extends NorteStore = NorteStore> {
   #compiledRoutes: Map<string, CompiledRoute[]> = new Map()
+  #rawRoutes: Map<string, CompiledRoute[]> = new Map()
 
   #logger: Logger
   #validator: Validator
@@ -58,11 +64,82 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
+  /**
+   * Adiciona uma rota HTTP raw (sem validação, sem domínio)
+   *
+   * Use para casos onde você precisa controle total do Request/Response:
+   * - Documentação (Scalar, Swagger)
+   * - Health checks e métricas
+   * - Webhooks externos
+   * - Integrações com libs externas (Better-Auth, etc)
+   *
+   * Suporta wildcards:
+   * - "*" como método = todos os métodos HTTP
+   * - "*" no path = captura qualquer path
+   *
+   * @example
+   * // Rota simples
+   * app.raw("GET", "/docs", () => Scalar({ url: "/openapi.json" }))
+   *
+   * // Wildcard de método (todos os métodos HTTP)
+   * app.raw("*", "/webhooks/stripe", handleStripe)
+   *
+   * // Wildcard de path (sub-aplicação)
+   * app.raw("*", "/api/auth/*", (req) => betterAuth.handler(req))
+   *
+   * // Wildcard total (captura tudo)
+   * app.raw("*", "*", customFallback)
+   */
+  public raw(
+    method: HttpMethod | '*',
+    path: string | '*',
+    handler: (req: Request) => Response | Promise<Response>,
+  ): this {
+    // Normaliza path: "*" vira "/*" para o matcher
+    const normalizedPath = path === '*' ? '/*' : path
+    const { routeParts, paramNames } =
+      this.#routeMatcher.splitPath(normalizedPath)
+
+    const compiledRoute: CompiledRoute = {
+      pathPattern: normalizedPath,
+      routeParts,
+      paramNames,
+      defaultStatus: 200,
+      execute: async (req: Request, _params: Record<string, string>) => {
+        try {
+          const log = this.#logger.createLogger(req)
+          log.debug({ method, path: normalizedPath }, 'Raw route executed')
+
+          return await handler(req)
+        } catch (err) {
+          return this.#errorHandler.handle(err)
+        }
+      },
+    }
+
+    // Determina quais métodos HTTP registrar
+    const methods =
+      method === '*'
+        ? ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+        : [method]
+
+    for (const m of methods) {
+      const upperMethod = m.toUpperCase()
+      if (!this.#rawRoutes.has(upperMethod)) {
+        this.#rawRoutes.set(upperMethod, [])
+      }
+      this.#rawRoutes.get(upperMethod)?.push(compiledRoute)
+    }
+
+    return this
+  }
+
   public fetch = async (req: Request): Promise<Response> => {
     const method = req.method.toUpperCase()
     const url = new URL(req.url)
     const pathname = url.pathname
 
+    // OpenAPI endpoint tem prioridade máxima
     if (method === 'GET' && pathname === '/openapi.json') {
       const openApiDoc = this.#openApiGenerator.generateDocument()
       return new Response(JSON.stringify(openApiDoc, null, 2), {
@@ -74,21 +151,35 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       })
     }
 
-    const routes = this.#compiledRoutes.get(method)
-    if (!routes) {
-      return this.#errorHandler.createNotFoundResponse()
-    }
-
     const pathParts = this.#routeMatcher.splitPathname(pathname)
 
-    for (const route of routes) {
-      const params = this.#routeMatcher.match(
-        route.routeParts,
-        pathParts,
-        route.paramNames,
-      )
-      if (params !== null) {
-        return await route.execute(req, params)
+    // Prioridade 1: Tentar raw routes primeiro
+    const rawRoutes = this.#rawRoutes.get(method)
+    if (rawRoutes) {
+      for (const route of rawRoutes) {
+        const params = this.#routeMatcher.match(
+          route.routeParts,
+          pathParts,
+          route.paramNames,
+        )
+        if (params !== null) {
+          return await route.execute(req, params)
+        }
+      }
+    }
+
+    // Prioridade 2: Tentar routers (rotas de domínio)
+    const routes = this.#compiledRoutes.get(method)
+    if (routes) {
+      for (const route of routes) {
+        const params = this.#routeMatcher.match(
+          route.routeParts,
+          pathParts,
+          route.paramNames,
+        )
+        if (params !== null) {
+          return await route.execute(req, params)
+        }
       }
     }
 

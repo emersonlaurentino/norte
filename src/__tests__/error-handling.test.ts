@@ -422,6 +422,26 @@ describe('Error Handling', () => {
     expect(() => {
       // biome-ignore lint/suspicious/noExplicitAny: any
       new Router(parentRouter, 'child', undefined as any)
-    }).toThrow('RouterOptions with schema is required.')
+    }).toThrow('RouterOptions is required for nested routers.')
+  })
+
+  it('should allow raw routes for custom HTTP handling', async () => {
+    const app = new Norte()
+
+    // Raw route - for documentation or other custom responses
+    app.raw('GET', '/docs/api', async () => {
+      return new Response('API Documentation', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })
+    })
+
+    const req = new Request('http://localhost/docs/api', { method: 'GET' })
+    const res = await app.fetch(req)
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('text/html')
+    const text = await res.text()
+    expect(text).toBe('API Documentation')
   })
 })
