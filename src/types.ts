@@ -6,7 +6,14 @@ export type NorteStore = Record<string, unknown>
 export type NorteSchema = TSchema
 
 // HTTP Method with autocomplete
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | '*' | (string & {})
+export type HttpMethod =
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'PATCH'
+  | 'DELETE'
+  | '*'
+  | (string & {})
 
 // Logger
 export interface NorteLogger {
@@ -92,6 +99,19 @@ export type Handler<T extends NorteStore = NorteStore> = (
 export type ListHandler<T extends NorteStore = NorteStore> = (
   ctx: HandlerContext<T> & { pagination: PaginationContext },
 ) => unknown | Promise<unknown>
+
+// Raw Route (without store)
+export type RawHandlerContext = {
+  log: NorteLogger
+  body: unknown
+  param: Record<string, unknown>
+  query: Record<string, unknown>
+  request?: Request
+}
+
+export type RawHandler = (
+  ctx: RawHandlerContext,
+) => Response | Promise<Response>
 
 // Router
 export type RouterOptions<T extends NorteStore = NorteStore> = {

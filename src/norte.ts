@@ -11,6 +11,7 @@ import type {
   HttpMethod,
   NorteOptions,
   NorteStore,
+  RawHandler,
 } from './types'
 
 export class Norte<TStore extends NorteStore = NorteStore> {
@@ -69,7 +70,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
   public raw(
     method: HttpMethod | HttpMethod[] | '*',
     path: string | '*',
-    handler: (req: Request) => Response | Promise<Response>,
+    handler: RawHandler,
   ): this {
     const normalizedPath = path === '*' ? '/*' : path
     const { routeParts, paramNames } =
@@ -80,12 +81,29 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       routeParts,
       paramNames,
       defaultStatus: 200,
-      execute: async (req: Request, _params: Record<string, string>) => {
+      execute: async (req: Request, params: Record<string, string>) => {
         try {
           const log = this.#logger.createLogger(req)
           log.debug({ method, path: normalizedPath }, 'Raw route executed')
 
-          return await handler(req)
+          const url = new URL(req.url)
+          const query = Object.fromEntries(url.searchParams.entries())
+
+          // Parse body
+          let body: unknown = null
+          const contentType = req.headers.get('content-type')
+          if (contentType?.includes('application/json') && req.body) {
+            body = await req.json()
+          }
+
+          // Execute handler
+          return await handler({
+            log,
+            body,
+            param: params,
+            query,
+            request: req,
+          })
         } catch (err) {
           return this.#errorHandler.handle(err)
         }

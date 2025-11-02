@@ -25,6 +25,8 @@ export type {
   PaginatedResponse,
   PaginationContext,
   PaginationMeta,
+  RawHandler,
+  RawHandlerContext,
   RouteOptions,
   RouterOptions,
   TelemetryOptions,

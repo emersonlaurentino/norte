@@ -20,11 +20,10 @@ describe('Raw Routes', () => {
       expect(text).toBe('OK')
     })
 
-    it('should handle simple POST route', async () => {
+    it('should handle simple POST route with body in context', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/webhook', async (req) => {
-        const body = await req.json()
+      app.raw('POST', '/webhook', async ({ body }) => {
         return new Response(JSON.stringify({ received: body }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -105,8 +104,8 @@ describe('Raw Routes', () => {
     it('should handle wildcard method * with specific path', async () => {
       const app = new Norte()
 
-      app.raw('*', '/api/echo', async (req) => {
-        return new Response(JSON.stringify({ method: req.method }), {
+      app.raw('*', '/api/echo', async ({ request }) => {
+        return new Response(JSON.stringify({ method: request?.method }), {
           headers: { 'content-type': 'application/json' },
         })
       })
@@ -148,8 +147,8 @@ describe('Raw Routes', () => {
     it('should handle array of methods for same path', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'DELETE'], '/post', (req) => {
-        return new Response(`${req.method} /post`, { status: 200 })
+      app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
+        return new Response(`${request?.method} /post`, { status: 200 })
       })
 
       const putReq = new Request('http://localhost/post', { method: 'PUT' })
@@ -166,8 +165,8 @@ describe('Raw Routes', () => {
     it('should not match methods not in array', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'DELETE'], '/post', (req) => {
-        return new Response(`${req.method} /post`, { status: 200 })
+      app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
+        return new Response(`${request?.method} /post`, { status: 200 })
       })
 
       const getReq = new Request('http://localhost/post', { method: 'GET' })
@@ -182,8 +181,8 @@ describe('Raw Routes', () => {
     it('should handle multiple methods with JSON response', async () => {
       const app = new Norte()
 
-      app.raw(['GET', 'POST', 'PUT'], '/api/resource', async (req) => {
-        const data = { method: req.method, timestamp: Date.now() }
+      app.raw(['GET', 'POST', 'PUT'], '/api/resource', async ({ request }) => {
+        const data = { method: request?.method, timestamp: Date.now() }
         return new Response(JSON.stringify(data), {
           headers: { 'content-type': 'application/json' },
         })
@@ -240,11 +239,9 @@ describe('Raw Routes', () => {
     it('should handle array of methods with path parameters', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'PATCH'], '/users/:id', (req) => {
-        const url = new URL(req.url)
-        const id = url.pathname.split('/').pop()
+      app.raw(['PUT', 'PATCH'], '/users/:id', ({ request, param }) => {
         return new Response(
-          JSON.stringify({ action: 'update', method: req.method, id }),
+          JSON.stringify({ action: 'update', method: request?.method, id: param.id }),
           { headers: { 'content-type': 'application/json' } },
         )
       })
@@ -265,10 +262,10 @@ describe('Raw Routes', () => {
     it('should handle array of methods with async handler', async () => {
       const app = new Norte()
 
-      app.raw(['POST', 'PUT'], '/async-resource', async (req) => {
+      app.raw(['POST', 'PUT'], '/async-resource', async ({ request }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
         return new Response(
-          JSON.stringify({ processed: true, method: req.method }),
+          JSON.stringify({ processed: true, method: request?.method }),
           { headers: { 'content-type': 'application/json' } },
         )
       })
@@ -311,8 +308,8 @@ describe('Raw Routes', () => {
     it('should handle path wildcard with specific method', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/api/v1/:wildcard', (req) => {
-        const url = new URL(req.url)
+      app.raw('GET', '/api/v1/:wildcard', ({ request }) => {
+        const url = new URL(request?.url || '')
         return new Response(
           JSON.stringify({ path: url.pathname }),
           { headers: { 'content-type': 'application/json' } },
@@ -335,11 +332,11 @@ describe('Raw Routes', () => {
     it('should handle path wildcard with method wildcard', async () => {
       const app = new Norte()
 
-      app.raw('*', '/api/auth/:action', (req) => {
-        const url = new URL(req.url)
+      app.raw('*', '/api/auth/:action', ({ request }) => {
+        const url = new URL(request?.url || '')
         return new Response(
           JSON.stringify({
-            method: req.method,
+            method: request?.method,
             path: url.pathname,
           }),
           { headers: { 'content-type': 'application/json' } },
@@ -390,17 +387,17 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       // Simulate Better-Auth handler
-      const authHandler = (req: Request) => {
-        const url = new URL(req.url)
+      const authHandler = ({ request }: { request?: Request }) => {
+        const url = new URL(request?.url || '')
         const path = url.pathname
 
-        if (path === '/api/auth/signin' && req.method === 'POST') {
+        if (path === '/api/auth/signin' && request?.method === 'POST') {
           return new Response(JSON.stringify({ token: 'abc123' }), {
             headers: { 'content-type': 'application/json' },
           })
         }
 
-        if (path === '/api/auth/signout' && req.method === 'POST') {
+        if (path === '/api/auth/signout' && request?.method === 'POST') {
           return new Response(null, { status: 204 })
         }
 
@@ -626,10 +623,8 @@ describe('Raw Routes', () => {
     it('should handle path with parameters', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/users/:id', (req) => {
-        const url = new URL(req.url)
-        const id = url.pathname.split('/').pop()
-        return new Response(JSON.stringify({ userId: id }), {
+      app.raw('GET', '/users/:id', ({ param }) => {
+        return new Response(JSON.stringify({ userId: param.id }), {
           headers: { 'content-type': 'application/json' },
         })
       })
@@ -655,6 +650,362 @@ describe('Raw Routes', () => {
       const res = await app.fetch(req)
 
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe('Rich Context', () => {
+    it('should provide body in context for JSON requests', async () => {
+      const app = new Norte()
+
+      app.raw('POST', '/api/users', async ({ body }) => {
+        return new Response(
+          JSON.stringify({
+            created: true,
+            user: body,
+          }),
+          {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
+      })
+
+      const res = await app.fetch(req)
+      expect(res.status).toBe(201)
+      const data = await res.json()
+      expect(data).toEqual({
+        created: true,
+        user: { name: 'Alice', email: 'alice@example.com' },
+      })
+    })
+
+    it('should provide param in context for URL parameters', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/api/posts/:postId/comments/:commentId', ({ param }) => {
+        return new Response(
+          JSON.stringify({
+            postId: param.postId,
+            commentId: param.commentId,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request(
+        'http://localhost/api/posts/42/comments/99',
+        { method: 'GET' },
+      )
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        postId: '42',
+        commentId: '99',
+      })
+    })
+
+    it('should provide query in context for query strings', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/api/search', ({ query }) => {
+        return new Response(
+          JSON.stringify({
+            term: query.q,
+            page: query.page,
+            limit: query.limit,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request(
+        'http://localhost/api/search?q=test&page=2&limit=10',
+        { method: 'GET' },
+      )
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        term: 'test',
+        page: '2',
+        limit: '10',
+      })
+    })
+
+    it('should provide log in context', async () => {
+      const app = new Norte()
+
+      let loggerUsed = false
+
+      app.raw('POST', '/api/log-test', ({ log, body }) => {
+        loggerUsed = true
+        expect(log).toBeDefined()
+        expect(typeof log.info).toBe('function')
+        expect(typeof log.error).toBe('function')
+        expect(typeof log.debug).toBe('function')
+        expect(typeof log.warn).toBe('function')
+
+        log.info({ data: body }, 'Test log message')
+
+        return new Response(JSON.stringify({ logged: true }), {
+          headers: { 'content-type': 'application/json' },
+        })
+      })
+
+      const req = new Request('http://localhost/api/log-test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ test: 'data' }),
+      })
+
+      const res = await app.fetch(req)
+      expect(res.status).toBe(200)
+      expect(loggerUsed).toBe(true)
+    })
+
+    it('should provide request in context when needed', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/api/headers', ({ request }) => {
+        const userAgent = request?.headers.get('user-agent') || 'unknown'
+        const authorization = request?.headers.get('authorization') || 'none'
+
+        return new Response(
+          JSON.stringify({
+            userAgent,
+            authorization,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/headers', {
+        method: 'GET',
+        headers: {
+          'user-agent': 'TestAgent/1.0',
+          'authorization': 'Bearer token123',
+        },
+      })
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        userAgent: 'TestAgent/1.0',
+        authorization: 'Bearer token123',
+      })
+    })
+
+    it('should handle body being null for non-JSON requests', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/api/test', ({ body }) => {
+        return new Response(
+          JSON.stringify({
+            bodyIsNull: body === null,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/test', { method: 'GET' })
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data.bodyIsNull).toBe(true)
+    })
+
+    it('should combine all context properties', async () => {
+      const app = new Norte()
+
+      app.raw('POST', '/api/users/:userId', ({ body, param, query, log }) => {
+        expect(body).toEqual({ name: 'Updated Name' })
+        expect(param.userId).toBe('123')
+        expect(query.notify).toBe('true')
+        expect(log).toBeDefined()
+
+        log.info({ userId: param.userId }, 'User update')
+
+        return new Response(
+          JSON.stringify({
+            userId: param.userId,
+            updates: body,
+            notify: query.notify === 'true',
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/users/123?notify=true', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Updated Name' }),
+      })
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        userId: '123',
+        updates: { name: 'Updated Name' },
+        notify: true,
+      })
+    })
+
+    it('should handle errors in handler with context', async () => {
+      const app = new Norte()
+
+      app.raw('POST', '/api/error', ({ body }) => {
+        throw new Error(`Invalid data: ${JSON.stringify(body)}`)
+      })
+
+      const req = new Request('http://localhost/api/error', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ invalid: true }),
+      })
+
+      const res = await app.fetch(req)
+      expect(res.status).toBe(500)
+      const data = await res.json()
+      expect(data.error).toBe('INTERNAL_SERVER_ERROR')
+    })
+
+    it('should work with async handlers using context', async () => {
+      const app = new Norte()
+
+      app.raw('POST', '/api/async', async ({ body, param, query }) => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
+        return new Response(
+          JSON.stringify({
+            body,
+            param,
+            query,
+            async: true,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/async?key=value', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ test: 'async' }),
+      })
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        body: { test: 'async' },
+        param: {},
+        query: { key: 'value' },
+        async: true,
+      })
+    })
+
+    it('should handle multiple path parameters', async () => {
+      const app = new Norte()
+
+      app.raw(
+        'GET',
+        '/api/users/:userId/posts/:postId/comments/:commentId',
+        ({ param }) => {
+          return new Response(JSON.stringify(param), {
+            headers: { 'content-type': 'application/json' },
+          })
+        },
+      )
+
+      const req = new Request(
+        'http://localhost/api/users/u1/posts/p2/comments/c3',
+        { method: 'GET' },
+      )
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data).toEqual({
+        userId: 'u1',
+        postId: 'p2',
+        commentId: 'c3',
+      })
+    })
+
+    it('should handle empty query strings', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/api/test', ({ query }) => {
+        return new Response(
+          JSON.stringify({
+            queryIsEmpty: Object.keys(query).length === 0,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const req = new Request('http://localhost/api/test', { method: 'GET' })
+
+      const res = await app.fetch(req)
+      const data = await res.json()
+      expect(data.queryIsEmpty).toBe(true)
+    })
+
+    it('should work with wildcard methods and context', async () => {
+      const app = new Norte()
+
+      app.raw('*', '/api/echo', ({ body, param, query, request }) => {
+        return new Response(
+          JSON.stringify({
+            method: request?.method,
+            body,
+            param,
+            query,
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        )
+      })
+
+      const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+
+      for (const method of methods) {
+        const req = new Request('http://localhost/api/echo?test=1', {
+          method,
+          ...(method !== 'GET' && {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ data: method }),
+          }),
+        })
+
+        const res = await app.fetch(req)
+        const data = await res.json()
+        expect(data.method).toBe(method)
+        expect(data.query).toEqual({ test: '1' })
+
+        if (method !== 'GET') {
+          expect(data.body).toEqual({ data: method })
+        }
+      }
     })
   })
 })
