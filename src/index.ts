@@ -8,6 +8,7 @@ export type {
   BaseContext,
   BeforeHook,
   BeforeHookContext,
+  Bindings,
   CompiledRoute,
   Handler,
   HandlerContext,

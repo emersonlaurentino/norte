@@ -5,6 +5,9 @@ import type { ValidateFunction } from 'ajv'
 export type NorteStore = Record<string, unknown>
 export type NorteSchema = TSchema
 
+// Bindings - can be extended via module augmentation
+export interface Bindings extends Record<string, unknown> {}
+
 // HTTP Method with autocomplete
 export type HttpMethod =
   | 'GET'
@@ -52,6 +55,7 @@ export type TelemetryOptions = {
 export type BaseContext<TStore extends NorteStore = NorteStore> = {
   store: TStore
   log: NorteLogger
+  env: Bindings
 }
 
 export type BeforeHookContext<TStore extends NorteStore = NorteStore> =
@@ -107,6 +111,7 @@ export type RawHandlerContext = {
   param: Record<string, unknown>
   query: Record<string, unknown>
   request?: Request
+  env: Bindings
 }
 
 export type RawHandler = (
@@ -153,7 +158,11 @@ export type CompiledRoute = {
   routeParts: string[]
   paramNames: string[]
   defaultStatus: number
-  execute: (req: Request, params: Record<string, string>) => Promise<Response>
+  execute: (
+    req: Request,
+    params: Record<string, string>,
+    cloudflareEnv?: Bindings,
+  ) => Promise<Response>
 }
 
 export type OpenAPIRouteMetadata = {

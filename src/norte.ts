@@ -7,6 +7,7 @@ import { RouteCompiler } from './services/route-compiler'
 import { RouteMatcher } from './services/route-matcher'
 import { Validator } from './services/validator'
 import type {
+  Bindings,
   CompiledRoute,
   HttpMethod,
   NorteOptions,
@@ -67,6 +68,21 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     }
   }
 
+  #getEnv(cloudflareEnv?: Bindings): Bindings {
+    // If Cloudflare Workers env is provided, use it
+    if (cloudflareEnv) {
+      return cloudflareEnv
+    }
+
+    // For Node.js/Bun, use process.env
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env as Bindings
+    }
+
+    // Fallback to empty object
+    return {} as Bindings
+  }
+
   public raw(
     method: HttpMethod | HttpMethod[] | '*',
     path: string | '*',
@@ -81,7 +97,11 @@ export class Norte<TStore extends NorteStore = NorteStore> {
       routeParts,
       paramNames,
       defaultStatus: 200,
-      execute: async (req: Request, params: Record<string, string>) => {
+      execute: async (
+        req: Request,
+        params: Record<string, string>,
+        cloudflareEnv?: Bindings,
+      ) => {
         try {
           const log = this.#logger.createLogger(req)
           log.debug({ method, path: normalizedPath }, 'Raw route executed')
@@ -96,6 +116,9 @@ export class Norte<TStore extends NorteStore = NorteStore> {
             body = await req.json()
           }
 
+          // Get env (Cloudflare or process.env)
+          const env = this.#getEnv(cloudflareEnv)
+
           // Execute handler
           return await handler({
             log,
@@ -103,6 +126,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
             param: params,
             query,
             request: req,
+            env,
           })
         } catch (err) {
           return this.#errorHandler.handle(err)
@@ -128,7 +152,10 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     return this
   }
 
-  public fetch = async (req: Request): Promise<Response> => {
+  public fetch = async (
+    req: Request,
+    cloudflareEnv?: Bindings,
+  ): Promise<Response> => {
     const method = req.method.toUpperCase()
     const url = new URL(req.url)
     const pathname = url.pathname
@@ -185,7 +212,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           route.paramNames,
         )
         if (params !== null) {
-          return await route.execute(req, params)
+          return await route.execute(req, params, cloudflareEnv)
         }
       }
     }
@@ -199,7 +226,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
           route.paramNames,
         )
         if (params !== null) {
-          return await route.execute(req, params)
+          return await route.execute(req, params, cloudflareEnv)
         }
       }
     }

@@ -4,6 +4,7 @@ import { NorteError, Router } from '../router'
 import type {
   AfterHook,
   BeforeHook,
+  Bindings,
   CompiledRoute,
   Handler,
   HandlerContext,
@@ -37,6 +38,21 @@ export class RouteCompiler {
     this.#routeMatcher = routeMatcher
     this.#logger = logger
     this.#errorHandler = errorHandler
+  }
+
+  #getEnv(cloudflareEnv?: Bindings): Bindings {
+    // If Cloudflare Workers env is provided, use it
+    if (cloudflareEnv) {
+      return cloudflareEnv
+    }
+
+    // For Node.js/Bun, use process.env
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env as Bindings
+    }
+
+    // Fallback to empty object
+    return {} as Bindings
   }
 
   public compile<TStore extends NorteStore>(
@@ -154,6 +170,7 @@ export class RouteCompiler {
     return async (
       req: Request,
       params: Record<string, string>,
+      cloudflareEnv?: Bindings,
     ): Promise<Response> => {
       try {
         const log: NorteLogger = this.#logger.createLogger(req)
@@ -181,6 +198,9 @@ export class RouteCompiler {
 
         const error = (code: string, msg: string) => new NorteError(code, msg)
 
+        // Get env (Cloudflare or process.env)
+        const env = this.#getEnv(cloudflareEnv)
+
         for (const hook of beforeHooks) {
           store = await hook({
             request: req,
@@ -190,6 +210,7 @@ export class RouteCompiler {
             store,
             log,
             error,
+            env,
           })
         }
 
@@ -227,6 +248,7 @@ export class RouteCompiler {
           store,
           log,
           request: req,
+          env,
         }
 
         if (isListMethod) {
@@ -288,6 +310,7 @@ export class RouteCompiler {
             headers: responseHeaders,
             store,
             log,
+            env,
           })
         }
 
