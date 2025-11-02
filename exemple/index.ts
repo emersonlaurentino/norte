@@ -2,7 +2,7 @@ import { Norte, Router, t } from '../src/index'
 
 type UserStore = { userId: string }
 
-const app = new Norte<UserStore>()
+const app = new Norte()
 
 // Define o schema do domínio User - será usado automaticamente em todos os métodos
 const UserSchema = t.Object({
@@ -12,7 +12,7 @@ const UserSchema = t.Object({
 })
 
 // Router com schema de response - todas as rotas retornam User ou User[]
-const userRouter = new Router<UserStore>('users', {
+const userRouter = new Router('users', {
   schema: UserSchema, // Schema de response do domínio
   beforeHandler: [
     async ({ request }) => {
@@ -60,7 +60,7 @@ const ProductSchema = t.Object({
   price: t.Number(),
 })
 
-const productRouter = new Router<UserStore>(userRouter, 'products', {
+const productRouter = new Router(userRouter, 'products', {
   schema: ProductSchema,
 })
 

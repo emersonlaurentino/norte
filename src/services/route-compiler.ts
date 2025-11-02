@@ -4,8 +4,8 @@ import { NorteError, Router } from '../router'
 import type {
   AfterHook,
   BeforeHook,
-  Bindings,
   CompiledRoute,
+  Env,
   Handler,
   HandlerContext,
   NorteLogger,
@@ -40,7 +40,7 @@ export class RouteCompiler {
     this.#errorHandler = errorHandler
   }
 
-  #getEnv(cloudflareEnv?: Bindings): Bindings {
+  #getEnv(cloudflareEnv?: Env): Env {
     // If Cloudflare Workers env is provided, use it
     if (cloudflareEnv) {
       return cloudflareEnv
@@ -48,11 +48,11 @@ export class RouteCompiler {
 
     // For Node.js/Bun, use process.env
     if (typeof process !== 'undefined' && process.env) {
-      return process.env as Bindings
+      return process.env as Env
     }
 
     // Fallback to empty object
-    return {} as Bindings
+    return {} as Env
   }
 
   public compile(definition: RouteDefinition): CompiledRoute {
@@ -65,7 +65,7 @@ export class RouteCompiler {
     const validators = this.#compileSchemas(options)
 
     const routerOptions = Router.getInternals(router).options
-    const responseValidator = routerOptions.schema 
+    const responseValidator = routerOptions.schema
       ? this.#compileResponseSchema(method, routerOptions.schema)
       : undefined
 
@@ -135,7 +135,7 @@ export class RouteCompiler {
     }
   }
 
-  #createSuperFunction<TStore extends NorteStore>(config: {
+  #createSuperFunction(config: {
     method: string
     path: string
     paramNames: string[]
@@ -145,11 +145,15 @@ export class RouteCompiler {
       param?: ValidateFunction | undefined
     }
     responseValidator: ValidateFunction | undefined
-    beforeHooks: BeforeHook<TStore>[]
-    handler: Handler<TStore>
-    afterHooks: AfterHook<TStore>[]
+    beforeHooks: BeforeHook[]
+    handler: Handler
+    afterHooks: AfterHook[]
     defaultStatus: number
-  }): (req: Request, params: Record<string, string>) => Promise<Response> {
+  }): (
+    req: Request,
+    params: Record<string, string>,
+    cloudflareEnv?: Env,
+  ) => Promise<Response> {
     const {
       method,
       path,
@@ -166,7 +170,7 @@ export class RouteCompiler {
     return async (
       req: Request,
       params: Record<string, string>,
-      cloudflareEnv?: Bindings,
+      cloudflareEnv?: Env,
     ): Promise<Response> => {
       try {
         const log: NorteLogger = this.#logger.createLogger(req)
@@ -190,7 +194,7 @@ export class RouteCompiler {
           }
         }
 
-        let store = {} as TStore
+        let store = {} as Store
 
         const error = (code: string, msg: string) => new NorteError(code, msg)
 
@@ -237,7 +241,7 @@ export class RouteCompiler {
           }
         }
 
-        let handlerContext: HandlerContext<TStore> = {
+        let handlerContext: HandlerContext = {
           body: bodyData,
           param,
           query,

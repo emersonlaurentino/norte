@@ -7,8 +7,8 @@ import { RouteCompiler } from './services/route-compiler'
 import { RouteMatcher } from './services/route-matcher'
 import { Validator } from './services/validator'
 import type {
-  Bindings,
   CompiledRoute,
+  Env,
   HttpMethod,
   NorteOptions,
   RawHandler,
@@ -67,7 +67,7 @@ export class Norte {
     }
   }
 
-  #getEnv(cloudflareEnv?: Bindings): Bindings {
+  #getEnv(cloudflareEnv?: Env): Env {
     // If Cloudflare Workers env is provided, use it
     if (cloudflareEnv) {
       return cloudflareEnv
@@ -75,11 +75,11 @@ export class Norte {
 
     // For Node.js/Bun, use process.env
     if (typeof process !== 'undefined' && process.env) {
-      return process.env as Bindings
+      return process.env as Env
     }
 
     // Fallback to empty object
-    return {} as Bindings
+    return {} as Env
   }
 
   public raw(
@@ -99,7 +99,7 @@ export class Norte {
       execute: async (
         req: Request,
         params: Record<string, string>,
-        cloudflareEnv?: Bindings,
+        cloudflareEnv?: Env,
       ) => {
         try {
           const log = this.#logger.createLogger(req)
@@ -153,7 +153,7 @@ export class Norte {
 
   public fetch = async (
     req: Request,
-    cloudflareEnv?: Bindings,
+    cloudflareEnv?: Env,
   ): Promise<Response> => {
     const method = req.method.toUpperCase()
     const url = new URL(req.url)

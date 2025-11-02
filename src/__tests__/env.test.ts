@@ -4,9 +4,9 @@ import { Norte } from '../norte'
 import { Router } from '../router'
 import type { NorteStore } from '../types'
 
-// Extend the Bindings interface to add custom environment variables
+// Extend the Env interface to add custom environment variables
 declare module '../types' {
-  interface Bindings {
+  interface Env {
     DATABASE_URL?: string
     API_KEY?: string
     KV?: {
@@ -16,7 +16,7 @@ declare module '../types' {
   }
 }
 
-describe('Environment Bindings (env)', () => {
+describe('Environment (env)', () => {
   let app: Norte
   let router: Router
 

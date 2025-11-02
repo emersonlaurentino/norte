@@ -8,8 +8,8 @@ export type NorteSchema = TSchema
 // Store - can be extended via module augmentation
 export interface Store extends Record<string, unknown> {}
 
-// Bindings - can be extended via module augmentation
-export interface Bindings extends Record<string, unknown> {}
+// Env - can be extended via module augmentation
+export interface Env extends Record<string, unknown> {}
 
 // HTTP Method with autocomplete
 export type HttpMethod =
@@ -58,7 +58,7 @@ export type TelemetryOptions = {
 export type BaseContext = {
   store: Store
   log: NorteLogger
-  env: Bindings
+  env: Env
 }
 
 export type BeforeHookContext = BaseContext & {
@@ -105,7 +105,7 @@ export type RawHandlerContext = {
   param: Record<string, unknown>
   query: Record<string, unknown>
   request?: Request
-  env: Bindings
+  env: Env
 }
 
 export type RawHandler = (
@@ -155,7 +155,7 @@ export type CompiledRoute = {
   execute: (
     req: Request,
     params: Record<string, string>,
-    cloudflareEnv?: Bindings,
+    cloudflareEnv?: Env,
   ) => Promise<Response>
 }
 
