@@ -1,6 +1,6 @@
 import type { RouteDefinition } from '../router'
 import { Router } from '../router'
-import type { NorteOptions, NorteStore, OpenAPIRouteMetadata } from '../types'
+import type { NorteOptions, OpenAPIRouteMetadata } from '../types'
 
 interface TypeBoxObjectSchema {
   type?: string
@@ -18,8 +18,8 @@ export class OpenAPIGenerator {
     this.#openapiOptions = openapiOptions
   }
 
-  public addRouteMetadata<TStore extends NorteStore>(
-    definition: RouteDefinition<TStore>,
+  public addRouteMetadata(
+    definition: RouteDefinition,
     fullPath: string,
   ): void {
     const metadata = this.#extractMetadata(definition, fullPath)
@@ -109,8 +109,8 @@ export class OpenAPIGenerator {
     return document
   }
 
-  #extractMetadata<TStore extends NorteStore>(
-    definition: RouteDefinition<TStore>,
+  #extractMetadata(
+    definition: RouteDefinition,
     fullPath: string,
   ): OpenAPIRouteMetadata {
     const { method, options, router } = definition
