@@ -60,6 +60,24 @@ describe('Scalar UI', () => {
     expect(res.status).toBe(404)
   })
 
+  it('deve permitir raw route em / quando openapi.ui é false', async () => {
+    const app = new Norte({
+      openapi: {
+        ui: false,
+      },
+    })
+
+    app.raw('GET', '/', () => {
+      return new Response('Custom Root')
+    })
+
+    const req = new Request('http://localhost/')
+    const res = await app.fetch(req)
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('Custom Root')
+  })
+
   it('NÃO deve permitir sobrescrever rota / com app.raw()', async () => {
     const app = new Norte()
 
