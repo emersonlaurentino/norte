@@ -1,6 +1,5 @@
 import type {
   Handler,
-  HttpMethod,
   ListHandler,
   NorteStore,
   RouteOptions,
