@@ -144,6 +144,169 @@ describe('Raw Routes', () => {
     })
   })
 
+  describe('Multiple Methods Array', () => {
+    it('should handle array of methods for same path', async () => {
+      const app = new Norte()
+
+      app.raw(['PUT', 'DELETE'], '/post', (req) => {
+        return new Response(`${req.method} /post`, { status: 200 })
+      })
+
+      const putReq = new Request('http://localhost/post', { method: 'PUT' })
+      const putRes = await app.fetch(putReq)
+      expect(putRes.status).toBe(200)
+      expect(await putRes.text()).toBe('PUT /post')
+
+      const deleteReq = new Request('http://localhost/post', { method: 'DELETE' })
+      const deleteRes = await app.fetch(deleteReq)
+      expect(deleteRes.status).toBe(200)
+      expect(await deleteRes.text()).toBe('DELETE /post')
+    })
+
+    it('should not match methods not in array', async () => {
+      const app = new Norte()
+
+      app.raw(['PUT', 'DELETE'], '/post', (req) => {
+        return new Response(`${req.method} /post`, { status: 200 })
+      })
+
+      const getReq = new Request('http://localhost/post', { method: 'GET' })
+      const getRes = await app.fetch(getReq)
+      expect(getRes.status).toBe(404)
+
+      const postReq = new Request('http://localhost/post', { method: 'POST' })
+      const postRes = await app.fetch(postReq)
+      expect(postRes.status).toBe(404)
+    })
+
+    it('should handle multiple methods with JSON response', async () => {
+      const app = new Norte()
+
+      app.raw(['GET', 'POST', 'PUT'], '/api/resource', async (req) => {
+        const data = { method: req.method, timestamp: Date.now() }
+        return new Response(JSON.stringify(data), {
+          headers: { 'content-type': 'application/json' },
+        })
+      })
+
+      const methods = ['GET', 'POST', 'PUT']
+      for (const method of methods) {
+        const req = new Request('http://localhost/api/resource', { method })
+        const res = await app.fetch(req)
+        expect(res.status).toBe(200)
+        const data = await res.json()
+        expect(data.method).toBe(method)
+        expect(typeof data.timestamp).toBe('number')
+      }
+    })
+
+    it('should handle array with single method', async () => {
+      const app = new Norte()
+
+      app.raw(['PATCH'], '/update', () => {
+        return new Response('Updated', { status: 200 })
+      })
+
+      const patchReq = new Request('http://localhost/update', { method: 'PATCH' })
+      const patchRes = await app.fetch(patchReq)
+      expect(patchRes.status).toBe(200)
+      expect(await patchRes.text()).toBe('Updated')
+
+      const postReq = new Request('http://localhost/update', { method: 'POST' })
+      const postRes = await app.fetch(postReq)
+      expect(postRes.status).toBe(404)
+    })
+
+    it('should handle multiple arrays on same path (different methods)', async () => {
+      const app = new Norte()
+
+      app.raw(['GET', 'POST'], '/data', () => {
+        return new Response('Read/Write operations')
+      })
+
+      app.raw(['PUT', 'DELETE'], '/data', () => {
+        return new Response('Update/Delete operations')
+      })
+
+      const getReq = new Request('http://localhost/data', { method: 'GET' })
+      const getRes = await app.fetch(getReq)
+      expect(await getRes.text()).toBe('Read/Write operations')
+
+      const putReq = new Request('http://localhost/data', { method: 'PUT' })
+      const putRes = await app.fetch(putReq)
+      expect(await putRes.text()).toBe('Update/Delete operations')
+    })
+
+    it('should handle array of methods with path parameters', async () => {
+      const app = new Norte()
+
+      app.raw(['PUT', 'PATCH'], '/users/:id', (req) => {
+        const url = new URL(req.url)
+        const id = url.pathname.split('/').pop()
+        return new Response(
+          JSON.stringify({ action: 'update', method: req.method, id }),
+          { headers: { 'content-type': 'application/json' } },
+        )
+      })
+
+      const putReq = new Request('http://localhost/users/123', { method: 'PUT' })
+      const putRes = await app.fetch(putReq)
+      const putData = await putRes.json()
+      expect(putData).toEqual({ action: 'update', method: 'PUT', id: '123' })
+
+      const patchReq = new Request('http://localhost/users/456', {
+        method: 'PATCH',
+      })
+      const patchRes = await app.fetch(patchReq)
+      const patchData = await patchRes.json()
+      expect(patchData).toEqual({ action: 'update', method: 'PATCH', id: '456' })
+    })
+
+    it('should handle array of methods with async handler', async () => {
+      const app = new Norte()
+
+      app.raw(['POST', 'PUT'], '/async-resource', async (req) => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        return new Response(
+          JSON.stringify({ processed: true, method: req.method }),
+          { headers: { 'content-type': 'application/json' } },
+        )
+      })
+
+      const postReq = new Request('http://localhost/async-resource', {
+        method: 'POST',
+      })
+      const postRes = await app.fetch(postReq)
+      const postData = await postRes.json()
+      expect(postData).toEqual({ processed: true, method: 'POST' })
+
+      const putReq = new Request('http://localhost/async-resource', {
+        method: 'PUT',
+      })
+      const putRes = await app.fetch(putReq)
+      const putData = await putRes.json()
+      expect(putData).toEqual({ processed: true, method: 'PUT' })
+    })
+
+    it('should handle errors in array methods', async () => {
+      const app = new Norte()
+
+      app.raw(['GET', 'POST'], '/error-route', () => {
+        throw new Error('Handler error')
+      })
+
+      const getReq = new Request('http://localhost/error-route', { method: 'GET' })
+      const getRes = await app.fetch(getReq)
+      expect(getRes.status).toBe(500)
+
+      const postReq = new Request('http://localhost/error-route', {
+        method: 'POST',
+      })
+      const postRes = await app.fetch(postReq)
+      expect(postRes.status).toBe(500)
+    })
+  })
+
   describe('Path Wildcards', () => {
     it('should handle path wildcard with specific method', async () => {
       const app = new Norte()

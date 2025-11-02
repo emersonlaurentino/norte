@@ -67,7 +67,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
   }
 
   public raw(
-    method: HttpMethod | '*',
+    method: HttpMethod | HttpMethod[] | '*',
     path: string | '*',
     handler: (req: Request) => Response | Promise<Response>,
   ): this {
@@ -95,7 +95,9 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     const methods =
       method === '*'
         ? ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-        : [method]
+        : Array.isArray(method)
+          ? method
+          : [method]
 
     for (const m of methods) {
       const upperMethod = m.toUpperCase()
