@@ -26,7 +26,7 @@ describe('Environment Bindings (env)', () => {
       logger: false,
     })
 
-    router = new Router<NorteStore>('posts', {
+    router = new Router('posts', {
       schema: Type.Object({
         id: Type.String(),
         title: Type.String(),
@@ -252,7 +252,7 @@ describe('Environment Bindings (env)', () => {
       logger: false,
     })
 
-    const routerNoEnv = new Router<NorteStore>('posts', {
+    const routerNoEnv = new Router('posts', {
       schema: Type.Object({
         id: Type.String(),
         title: Type.String(),

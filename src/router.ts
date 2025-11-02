@@ -1,7 +1,6 @@
 import type {
   Handler,
   ListHandler,
-  NorteStore,
   RouteOptions,
   RouterOptions,
 } from './types'
@@ -14,35 +13,31 @@ export class NorteError extends Error {
   }
 }
 
-export type RouteDefinition<TStore extends NorteStore = NorteStore> = {
+export type RouteDefinition = {
   method: string
   path: string
-  handler: Handler<TStore>
-  options: RouteOptions<TStore>
-  router: Router<TStore>
+  handler: Handler
+  options: RouteOptions
+  router: Router
 }
 
-export class Router<TStore extends NorteStore = NorteStore> {
+export class Router {
   readonly #domain: string
-  readonly #parent: Router<TStore> | null
-  readonly #options: RouterOptions<TStore>
-  readonly #definitions: RouteDefinition<TStore>[] = []
+  readonly #parent: Router | null
+  readonly #options: RouterOptions
+  readonly #definitions: RouteDefinition[] = []
 
-  constructor(domain: string, options: RouterOptions<TStore>)
+  constructor(domain: string, options: RouterOptions)
+  constructor(parent: Router, domain: string, options: RouterOptions)
   constructor(
-    parent: Router<TStore>,
-    domain: string,
-    options: RouterOptions<TStore>,
-  )
-  constructor(
-    parentOrDomain: Router<TStore> | string,
-    domainOrOptions: string | RouterOptions<TStore>,
-    options?: RouterOptions<TStore>,
+    parentOrDomain: Router | string,
+    domainOrOptions: string | RouterOptions,
+    options?: RouterOptions,
   ) {
     if (typeof parentOrDomain === 'string') {
       this.#domain = parentOrDomain
       this.#parent = null
-      this.#options = domainOrOptions as RouterOptions<TStore>
+      this.#options = domainOrOptions as RouterOptions
     } else {
       this.#parent = parentOrDomain
       this.#domain = domainOrOptions as string
@@ -60,18 +55,15 @@ export class Router<TStore extends NorteStore = NorteStore> {
     }
   }
 
-  public list(
-    options: RouteOptions<TStore>,
-    handler: ListHandler<TStore>,
-  ): this {
+  public list(options: RouteOptions, handler: ListHandler): this {
     return this.#addDefinition('GET', '', options, handler)
   }
 
-  public create(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+  public create(options: RouteOptions, handler: Handler): this {
     return this.#addDefinition('POST', '', options, handler)
   }
 
-  public read(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+  public read(options: RouteOptions, handler: Handler): this {
     return this.#addDefinition(
       'GET',
       `/:${this.#getDomainId()}`,
@@ -80,7 +72,7 @@ export class Router<TStore extends NorteStore = NorteStore> {
     )
   }
 
-  public update(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+  public update(options: RouteOptions, handler: Handler): this {
     return this.#addDefinition(
       'PATCH',
       `/:${this.#getDomainId()}`,
@@ -89,7 +81,7 @@ export class Router<TStore extends NorteStore = NorteStore> {
     )
   }
 
-  public delete(options: RouteOptions<TStore>, handler: Handler<TStore>): this {
+  public delete(options: RouteOptions, handler: Handler): this {
     return this.#addDefinition(
       'DELETE',
       `/:${this.#getDomainId()}`,
@@ -101,14 +93,14 @@ export class Router<TStore extends NorteStore = NorteStore> {
   #addDefinition(
     method: string,
     path: string,
-    options: RouteOptions<TStore>,
-    handler: Handler<TStore> | ListHandler<TStore>,
+    options: RouteOptions,
+    handler: Handler | ListHandler,
   ): this {
     this.#definitions.push({
       method,
       path,
       options,
-      handler: handler as Handler<TStore>,
+      handler: handler as Handler,
       router: this,
     })
     return this
@@ -120,13 +112,11 @@ export class Router<TStore extends NorteStore = NorteStore> {
       : `${this.#domain}Id`
   }
 
-  public static getInternals<TStore extends NorteStore = NorteStore>(
-    router: Router<TStore>,
-  ): {
+  public static getInternals(router: Router): {
     domain: string
-    parent: Router<TStore> | null
-    options: RouterOptions<TStore>
-    definitions: RouteDefinition<TStore>[]
+    parent: Router | null
+    options: RouterOptions
+    definitions: RouteDefinition[]
   } {
     return {
       domain: router.#domain,

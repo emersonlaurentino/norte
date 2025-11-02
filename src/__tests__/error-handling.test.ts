@@ -216,7 +216,7 @@ describe('Error Handling', () => {
       name: t.String(),
     })
 
-    const usersRouter = new Router<NorteStore>('users', {
+    const usersRouter = new Router('users', {
       schema: userSchema,
       beforeHandler: [
         async () => {

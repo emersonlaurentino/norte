@@ -1,14 +1,10 @@
 import { Router } from '../router'
-import type { NorteStore } from '../types'
 
 export class PathBuilder {
-  public buildFullPath<TStore extends NorteStore>(
-    router: Router<TStore>,
-    path: string,
-  ): string {
+  public buildFullPath(router: Router, path: string): string {
     const parts: string[] = []
 
-    let currentRouter: Router<TStore> | null = router
+    let currentRouter: Router | null = router
     let version: number | undefined
 
     while (currentRouter) {
@@ -29,7 +25,7 @@ export class PathBuilder {
         parts.unshift(`:${parentDomainId}`)
       }
 
-      currentRouter = parent as Router<TStore> | null
+      currentRouter = parent as Router | null
     }
 
     const versionPrefix = `v${version ?? 1}`

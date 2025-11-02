@@ -10,8 +10,8 @@ import type {
   HandlerContext,
   NorteLogger,
   NorteSchema,
-  NorteStore,
   PaginationContext,
+  Store,
 } from '../types'
 import type { ErrorHandler } from './error-handler'
 import type { Logger } from './logger'
@@ -55,9 +55,7 @@ export class RouteCompiler {
     return {} as Bindings
   }
 
-  public compile<TStore extends NorteStore>(
-    definition: RouteDefinition<TStore>,
-  ): CompiledRoute {
+  public compile(definition: RouteDefinition): CompiledRoute {
     const { method, path, handler, options, router } = definition
 
     const fullPath = this.#pathBuilder.buildFullPath(router, path)
@@ -103,9 +101,7 @@ export class RouteCompiler {
     }
   }
 
-  #compileSchemas<TStore extends NorteStore>(
-    options: RouteDefinition<TStore>['options'],
-  ): {
+  #compileSchemas(options: RouteDefinition['options']): {
     body?: ValidateFunction | undefined
     query?: ValidateFunction | undefined
     param?: ValidateFunction | undefined
@@ -266,7 +262,7 @@ export class RouteCompiler {
           handlerContext = {
             ...handlerContext,
             pagination,
-          } as HandlerContext<TStore> & { pagination: PaginationContext }
+          } as HandlerContext & { pagination: PaginationContext }
         }
 
         const result = await handler(handlerContext)

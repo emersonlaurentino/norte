@@ -2,8 +2,11 @@ import type { TSchema } from '@sinclair/typebox'
 import type { ValidateFunction } from 'ajv'
 
 // Core
-export type NorteStore = Record<string, unknown>
+export type NorteStore = Store
 export type NorteSchema = TSchema
+
+// Store - can be extended via module augmentation
+export interface Store extends Record<string, unknown> {}
 
 // Bindings - can be extended via module augmentation
 export interface Bindings extends Record<string, unknown> {}
@@ -52,35 +55,32 @@ export type TelemetryOptions = {
 }
 
 // Hooks & Handlers
-export type BaseContext<TStore extends NorteStore = NorteStore> = {
-  store: TStore
+export type BaseContext = {
+  store: Store
   log: NorteLogger
   env: Bindings
 }
 
-export type BeforeHookContext<TStore extends NorteStore = NorteStore> =
-  BaseContext<TStore> & {
-    request: Request
-    headers: Headers
-    param: Record<string, string>
-    query: Record<string, string>
-    error: (code: string, msg: string) => Error
-  }
+export type BeforeHookContext = BaseContext & {
+  request: Request
+  headers: Headers
+  param: Record<string, string>
+  query: Record<string, string>
+  error: (code: string, msg: string) => Error
+}
 
-export type AfterHookContext<TStore extends NorteStore = NorteStore> =
-  BaseContext<TStore> & {
-    result: unknown
-    response: { status?: number }
-    headers: Headers
-  }
+export type AfterHookContext = BaseContext & {
+  result: unknown
+  response: { status?: number }
+  headers: Headers
+}
 
-export type HandlerContext<TStore extends NorteStore = NorteStore> =
-  BaseContext<TStore> & {
-    body: unknown
-    param: Record<string, unknown>
-    query: Record<string, unknown>
-    request?: Request
-  }
+export type HandlerContext = BaseContext & {
+  body: unknown
+  param: Record<string, unknown>
+  query: Record<string, unknown>
+  request?: Request
+}
 
 export type PaginationContext = {
   page: number
@@ -88,20 +88,14 @@ export type PaginationContext = {
   offset: number
 }
 
-export type BeforeHook<T extends NorteStore = NorteStore> = (
-  ctx: BeforeHookContext<T>,
-) => T | Promise<T>
+export type BeforeHook = (ctx: BeforeHookContext) => Store | Promise<Store>
 
-export type AfterHook<T extends NorteStore = NorteStore> = (
-  ctx: AfterHookContext<T>,
-) => void | Promise<void>
+export type AfterHook = (ctx: AfterHookContext) => void | Promise<void>
 
-export type Handler<T extends NorteStore = NorteStore> = (
-  ctx: HandlerContext<T>,
-) => unknown | Promise<unknown>
+export type Handler = (ctx: HandlerContext) => unknown | Promise<unknown>
 
-export type ListHandler<T extends NorteStore = NorteStore> = (
-  ctx: HandlerContext<T> & { pagination: PaginationContext },
+export type ListHandler = (
+  ctx: HandlerContext & { pagination: PaginationContext },
 ) => unknown | Promise<unknown>
 
 // Raw Route (without store)
@@ -119,19 +113,19 @@ export type RawHandler = (
 ) => Response | Promise<Response>
 
 // Router
-export type RouterOptions<T extends NorteStore = NorteStore> = {
+export type RouterOptions = {
   schema?: NorteSchema
   version?: number
-  beforeHandler?: BeforeHook<T>[]
-  afterHandler?: AfterHook<T>[]
+  beforeHandler?: BeforeHook[]
+  afterHandler?: AfterHook[]
 }
 
-export type RouteOptions<T extends NorteStore = NorteStore> = {
+export type RouteOptions = {
   body?: NorteSchema
   query?: NorteSchema
   param?: NorteSchema
-  beforeHandler?: BeforeHook<T>[]
-  afterHandler?: AfterHook<T>[]
+  beforeHandler?: BeforeHook[]
+  afterHandler?: AfterHook[]
 }
 
 // Norte

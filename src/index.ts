@@ -30,5 +30,6 @@ export type {
   RawHandlerContext,
   RouteOptions,
   RouterOptions,
+  Store,
   TelemetryOptions,
 } from './types'

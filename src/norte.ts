@@ -11,11 +11,10 @@ import type {
   CompiledRoute,
   HttpMethod,
   NorteOptions,
-  NorteStore,
   RawHandler,
 } from './types'
 
-export class Norte<TStore extends NorteStore = NorteStore> {
+export class Norte {
   #compiledRoutes: Map<string, CompiledRoute[]> = new Map()
   #rawRoutes: Map<string, CompiledRoute[]> = new Map()
 
@@ -46,7 +45,7 @@ export class Norte<TStore extends NorteStore = NorteStore> {
     )
   }
 
-  public register(router: Router<TStore>) {
+  public register(router: Router) {
     const { definitions } = Router.getInternals(router)
 
     for (const definition of definitions) {
