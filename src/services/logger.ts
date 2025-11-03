@@ -68,11 +68,40 @@ export class Logger {
       bindings.service = this.#telemetryServiceName
     }
 
-    const childLogger = this.#baseLogger.child(bindings) as NorteLogger
-    return Object.assign(childLogger, { requestId }) as NorteLogger
+    return this.#createWrappedLogger(bindings)
   }
 
-  public static getRequestId(log: NorteLogger | undefined, req: Request): string {
+  #createWrappedLogger(bindings: Record<string, unknown>): NorteLogger {
+    const createLogMethod =
+      (level: 'info' | 'warn' | 'error' | 'debug') =>
+      (obj: object, msg?: string) => {
+        const mergedObj = { ...bindings, ...obj }
+        if (msg) {
+          this.#baseLogger[level](mergedObj, msg)
+        } else {
+          this.#baseLogger[level](mergedObj)
+        }
+      }
+
+    return {
+      requestId: bindings.requestId as string | undefined,
+      info: createLogMethod('info'),
+      warn: createLogMethod('warn'),
+      error: createLogMethod('error'),
+      debug: createLogMethod('debug'),
+      child: (newBindings: object) => {
+        const allBindings = { ...bindings, ...newBindings }
+        return this.#createWrappedLogger(allBindings)
+      },
+      bindings: () => bindings,
+      level: this.#baseLogger.level,
+    } as NorteLogger
+  }
+
+  public static getRequestId(
+    log: NorteLogger | undefined,
+    req: Request,
+  ): string {
     if (log?.requestId) {
       return log.requestId
     }
