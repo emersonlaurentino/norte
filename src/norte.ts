@@ -12,6 +12,7 @@ import type {
   HttpMethod,
   NorteOptions,
   RawHandler,
+  RawHandlerContext,
 } from './types'
 
 export class Norte {
@@ -99,6 +100,13 @@ export class Norte {
     const { routeParts, paramNames } =
       this.#routeMatcher.splitPath(normalizedPath)
 
+    // Cache para o handler inicializado (lazy initialization)
+    let initializedHandler:
+      | ((ctx: RawHandlerContext) => Response | Promise<Response>)
+      | undefined
+    // Promise para garantir single initialization (proteção contra race condition)
+    let initPromise: Promise<void> | undefined
+
     const compiledRoute: CompiledRoute = {
       pathPattern: normalizedPath,
       routeParts,
@@ -126,8 +134,26 @@ export class Norte {
           // Get env (Cloudflare or process.env)
           const env = this.#getEnv(cloudflareEnv)
 
-          // Execute handler
-          return await handler({
+          // Lazy initialization - só inicializa no primeiro request
+          // Proteção contra race condition: se múltiplos requests chegarem simultaneamente,
+          // apenas o primeiro inicializa, os demais aguardam
+          if (!initializedHandler && !initPromise) {
+            initPromise = Promise.resolve(handler(env)).then((h) => {
+              initializedHandler = h
+            })
+          }
+
+          if (initPromise) {
+            await initPromise
+            initPromise = undefined
+          }
+
+          // Execute handler inicializado
+          if (!initializedHandler) {
+            throw new Error('Handler not initialized')
+          }
+
+          return await initializedHandler({
             log,
             body,
             param: params,

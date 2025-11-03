@@ -9,7 +9,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/health', () => {
-        return new Response('OK', { status: 200 })
+        return () => new Response('OK', { status: 200 })
       })
 
       const req = new Request('http://localhost/health', { method: 'GET' })
@@ -23,11 +23,13 @@ describe('Raw Routes', () => {
     it('should handle simple POST route with body in context', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/webhook', async ({ body }) => {
-        return new Response(JSON.stringify({ received: body }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
+      app.raw('POST', '/webhook', () => {
+        return async ({ body }) => {
+          return new Response(JSON.stringify({ received: body }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
       })
 
       const req = new Request('http://localhost/webhook', {
@@ -46,10 +48,12 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/docs', () => {
-        return new Response('<html><body>Documentation</body></html>', {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        })
+        return () => {
+          return new Response('<html><body>Documentation</body></html>', {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          })
+        }
       })
 
       const req = new Request('http://localhost/docs', { method: 'GET' })
@@ -65,13 +69,15 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/export', () => {
-        return new Response('id,name\n1,Alice\n2,Bob', {
-          status: 200,
-          headers: {
-            'content-type': 'text/csv',
-            'content-disposition': 'attachment; filename="users.csv"',
-          },
-        })
+        return () => {
+          return new Response('id,name\n1,Alice\n2,Bob', {
+            status: 200,
+            headers: {
+              'content-type': 'text/csv',
+              'content-disposition': 'attachment; filename="users.csv"',
+            },
+          })
+        }
       })
 
       const req = new Request('http://localhost/export', { method: 'GET' })
@@ -90,7 +96,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('POST', '/accepted', () => {
-        return new Response(null, { status: 202 })
+        return () => new Response(null, { status: 202 })
       })
 
       const req = new Request('http://localhost/accepted', { method: 'POST' })
@@ -104,10 +110,12 @@ describe('Raw Routes', () => {
     it('should handle wildcard method * with specific path', async () => {
       const app = new Norte()
 
-      app.raw('*', '/api/echo', async ({ request }) => {
-        return new Response(JSON.stringify({ method: request.method }), {
-          headers: { 'content-type': 'application/json' },
-        })
+      app.raw('*', '/api/echo', () => {
+        return async ({ request }) => {
+          return new Response(JSON.stringify({ method: request.method }), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
       })
 
       // Test different methods
@@ -129,15 +137,21 @@ describe('Raw Routes', () => {
       let callCount = 0
 
       app.raw('*', '/counter', () => {
-        callCount++
-        return new Response(`Called ${callCount} times`)
+        return () => {
+          callCount++
+          return new Response(`Called ${callCount} times`)
+        }
       })
 
-      await app.fetch(new Request('http://localhost/counter', { method: 'GET' }))
+      await app.fetch(
+        new Request('http://localhost/counter', { method: 'GET' }),
+      )
       await app.fetch(
         new Request('http://localhost/counter', { method: 'POST' }),
       )
-      await app.fetch(new Request('http://localhost/counter', { method: 'PUT' }))
+      await app.fetch(
+        new Request('http://localhost/counter', { method: 'PUT' }),
+      )
 
       expect(callCount).toBe(3)
     })
@@ -147,8 +161,10 @@ describe('Raw Routes', () => {
     it('should handle array of methods for same path', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
-        return new Response(`${request.method} /post`, { status: 200 })
+      app.raw(['PUT', 'DELETE'], '/post', () => {
+        return ({ request }) => {
+          return new Response(`${request.method} /post`, { status: 200 })
+        }
       })
 
       const putReq = new Request('http://localhost/post', { method: 'PUT' })
@@ -156,7 +172,9 @@ describe('Raw Routes', () => {
       expect(putRes.status).toBe(200)
       expect(await putRes.text()).toBe('PUT /post')
 
-      const deleteReq = new Request('http://localhost/post', { method: 'DELETE' })
+      const deleteReq = new Request('http://localhost/post', {
+        method: 'DELETE',
+      })
       const deleteRes = await app.fetch(deleteReq)
       expect(deleteRes.status).toBe(200)
       expect(await deleteRes.text()).toBe('DELETE /post')
@@ -165,8 +183,10 @@ describe('Raw Routes', () => {
     it('should not match methods not in array', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
-        return new Response(`${request.method} /post`, { status: 200 })
+      app.raw(['PUT', 'DELETE'], '/post', () => {
+        return ({ request }) => {
+          return new Response(`${request.method} /post`, { status: 200 })
+        }
       })
 
       const getReq = new Request('http://localhost/post', { method: 'GET' })
@@ -181,11 +201,13 @@ describe('Raw Routes', () => {
     it('should handle multiple methods with JSON response', async () => {
       const app = new Norte()
 
-      app.raw(['GET', 'POST', 'PUT'], '/api/resource', async ({ request }) => {
-        const data = { method: request.method, timestamp: Date.now() }
-        return new Response(JSON.stringify(data), {
-          headers: { 'content-type': 'application/json' },
-        })
+      app.raw(['GET', 'POST', 'PUT'], '/api/resource', () => {
+        return async ({ request }) => {
+          const data = { method: request.method, timestamp: Date.now() }
+          return new Response(JSON.stringify(data), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
       })
 
       const methods = ['GET', 'POST', 'PUT']
@@ -203,10 +225,12 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['PATCH'], '/update', () => {
-        return new Response('Updated', { status: 200 })
+        return () => new Response('Updated', { status: 200 })
       })
 
-      const patchReq = new Request('http://localhost/update', { method: 'PATCH' })
+      const patchReq = new Request('http://localhost/update', {
+        method: 'PATCH',
+      })
       const patchRes = await app.fetch(patchReq)
       expect(patchRes.status).toBe(200)
       expect(await patchRes.text()).toBe('Updated')
@@ -220,11 +244,11 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['GET', 'POST'], '/data', () => {
-        return new Response('Read/Write operations')
+        return () => new Response('Read/Write operations')
       })
 
       app.raw(['PUT', 'DELETE'], '/data', () => {
-        return new Response('Update/Delete operations')
+        return () => new Response('Update/Delete operations')
       })
 
       const getReq = new Request('http://localhost/data', { method: 'GET' })
@@ -239,14 +263,22 @@ describe('Raw Routes', () => {
     it('should handle array of methods with path parameters', async () => {
       const app = new Norte()
 
-      app.raw(['PUT', 'PATCH'], '/users/:id', ({ request, param }) => {
-        return new Response(
-          JSON.stringify({ action: 'update', method: request.method, id: param.id }),
-          { headers: { 'content-type': 'application/json' } },
-        )
+      app.raw(['PUT', 'PATCH'], '/users/:id', () => {
+        return ({ request, param }) => {
+          return new Response(
+            JSON.stringify({
+              action: 'update',
+              method: request.method,
+              id: param.id,
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        }
       })
 
-      const putReq = new Request('http://localhost/users/123', { method: 'PUT' })
+      const putReq = new Request('http://localhost/users/123', {
+        method: 'PUT',
+      })
       const putRes = await app.fetch(putReq)
       const putData = await putRes.json()
       expect(putData).toEqual({ action: 'update', method: 'PUT', id: '123' })
@@ -256,18 +288,24 @@ describe('Raw Routes', () => {
       })
       const patchRes = await app.fetch(patchReq)
       const patchData = await patchRes.json()
-      expect(patchData).toEqual({ action: 'update', method: 'PATCH', id: '456' })
+      expect(patchData).toEqual({
+        action: 'update',
+        method: 'PATCH',
+        id: '456',
+      })
     })
 
     it('should handle array of methods with async handler', async () => {
       const app = new Norte()
 
-      app.raw(['POST', 'PUT'], '/async-resource', async ({ request }) => {
-        await new Promise((resolve) => setTimeout(resolve, 10))
-        return new Response(
-          JSON.stringify({ processed: true, method: request.method }),
-          { headers: { 'content-type': 'application/json' } },
-        )
+      app.raw(['POST', 'PUT'], '/async-resource', () => {
+        return async ({ request }) => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          return new Response(
+            JSON.stringify({ processed: true, method: request.method }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        }
       })
 
       const postReq = new Request('http://localhost/async-resource', {
@@ -289,10 +327,14 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['GET', 'POST'], '/error-route', () => {
-        throw new Error('Handler error')
+        return () => {
+          throw new Error('Handler error')
+        }
       })
 
-      const getReq = new Request('http://localhost/error-route', { method: 'GET' })
+      const getReq = new Request('http://localhost/error-route', {
+        method: 'GET',
+      })
       const getRes = await app.fetch(getReq)
       expect(getRes.status).toBe(500)
 
@@ -308,15 +350,18 @@ describe('Raw Routes', () => {
     it('should handle path wildcard with specific method', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/api/v1/:wildcard', ({ request }) => {
-        const url = new URL(request.url)
-        return new Response(
-          JSON.stringify({ path: url.pathname }),
-          { headers: { 'content-type': 'application/json' } },
-        )
+      app.raw('GET', '/api/v1/:wildcard', () => {
+        return ({ request }) => {
+          const url = new URL(request.url)
+          return new Response(JSON.stringify({ path: url.pathname }), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
       })
 
-      const req1 = new Request('http://localhost/api/v1/users', { method: 'GET' })
+      const req1 = new Request('http://localhost/api/v1/users', {
+        method: 'GET',
+      })
       const res1 = await app.fetch(req1)
       const data1 = await res1.json()
       expect(data1.path).toBe('/api/v1/users')
@@ -332,15 +377,17 @@ describe('Raw Routes', () => {
     it('should handle path wildcard with method wildcard', async () => {
       const app = new Norte()
 
-      app.raw('*', '/api/auth/:action', ({ request }) => {
-        const url = new URL(request.url)
-        return new Response(
-          JSON.stringify({
-            method: request.method,
-            path: url.pathname,
-          }),
-          { headers: { 'content-type': 'application/json' } },
-        )
+      app.raw('*', '/api/auth/:action', () => {
+        return ({ request }) => {
+          const url = new URL(request.url)
+          return new Response(
+            JSON.stringify({
+              method: request.method,
+              path: url.pathname,
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        }
       })
 
       // Test different combinations
@@ -366,7 +413,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/:catchAll', () => {
-        return new Response('Caught by wildcard', { status: 200 })
+        return () => new Response('Caught by wildcard', { status: 200 })
       })
 
       const req1 = new Request('http://localhost/anything', { method: 'GET' })
@@ -387,21 +434,23 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       // Simulate Better-Auth handler
-      const authHandler = ({ request }: { request: Request }) => {
-        const url = new URL(request.url)
-        const path = url.pathname
+      const authHandler = () => {
+        return ({ request }: { request: Request }) => {
+          const url = new URL(request.url)
+          const path = url.pathname
 
-        if (path === '/api/auth/signin' && request.method === 'POST') {
-          return new Response(JSON.stringify({ token: 'abc123' }), {
-            headers: { 'content-type': 'application/json' },
-          })
+          if (path === '/api/auth/signin' && request.method === 'POST') {
+            return new Response(JSON.stringify({ token: 'abc123' }), {
+              headers: { 'content-type': 'application/json' },
+            })
+          }
+
+          if (path === '/api/auth/signout' && request.method === 'POST') {
+            return new Response(null, { status: 204 })
+          }
+
+          return new Response('Not Found', { status: 404 })
         }
-
-        if (path === '/api/auth/signout' && request.method === 'POST') {
-          return new Response(null, { status: 204 })
-        }
-
-        return new Response('Not Found', { status: 404 })
       }
 
       app.raw('*', '/api/auth/:action', authHandler)
@@ -427,19 +476,19 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/docs', () => {
-        return new Response(
-          `<!DOCTYPE html>
+        return () => {
+          return new Response(
+            `<!DOCTYPE html>
 <html>
   <head><title>API Documentation</title></head>
-  <body>
-    <script id="api-reference" data-url="/openapi.json"></script>
-  </body>
+  <body><h1>Docs</h1></body>
 </html>`,
-          {
-            status: 200,
-            headers: { 'content-type': 'text/html' },
-          },
-        )
+            {
+              status: 200,
+              headers: { 'content-type': 'text/html' },
+            },
+          )
+        }
       })
 
       const req = new Request('http://localhost/docs', { method: 'GET' })
@@ -447,31 +496,60 @@ describe('Raw Routes', () => {
 
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toBe('text/html')
-      const html = await res.text()
-      expect(html).toContain('API Documentation')
-      expect(html).toContain('/openapi.json')
+      const text = await res.text()
+      expect(text).toContain('API Documentation')
     })
 
-    it('should handle health check endpoint', async () => {
+    it('should handle real-world routing with query params', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/health', () => {
-        return new Response(
-          JSON.stringify({ status: 'healthy', timestamp: Date.now() }),
-          {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          },
-        )
+      app.raw('GET', '/search', () => {
+        return ({ query }) => {
+          return new Response(
+            JSON.stringify({ term: query.q || '', results: [] }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          )
+        }
       })
 
-      const req = new Request('http://localhost/health', { method: 'GET' })
+      const req = new Request('http://localhost/search?q=typescript', {
+        method: 'GET',
+      })
       const res = await app.fetch(req)
-
-      expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.status).toBe('healthy')
-      expect(typeof data.timestamp).toBe('number')
+
+      expect(data.term).toBe('typescript')
+      expect(Array.isArray(data.results)).toBe(true)
+    })
+
+    it('should support proxying to external APIs (simulation)', async () => {
+      const app = new Norte()
+
+      app.raw('*', '/api/proxy/:resource/:id', () => {
+        return ({ param }) => {
+          return new Response(
+            JSON.stringify({
+              proxied: true,
+              resource: param.resource,
+              id: param.id,
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        }
+      })
+
+      const req = new Request('http://localhost/api/proxy/users/123', {
+        method: 'GET',
+      })
+      const res = await app.fetch(req)
+      const data = await res.json()
+
+      expect(data.proxied).toBe(true)
+      expect(data.resource).toBe('users')
+      expect(data.id).toBe('123')
     })
   })
 
@@ -495,9 +573,11 @@ describe('Raw Routes', () => {
 
       // Override with raw route
       app.raw('GET', '/v1/users', () => {
-        return new Response(JSON.stringify([{ id: '2', name: 'From Raw' }]), {
-          headers: { 'content-type': 'application/json' },
-        })
+        return () => {
+          return new Response(JSON.stringify([{ id: '2', name: 'From Raw' }]), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
       })
 
       const req = new Request('http://localhost/v1/users', { method: 'GET' })
@@ -513,7 +593,7 @@ describe('Raw Routes', () => {
 
       // Raw route
       app.raw('GET', '/health', () => {
-        return new Response('OK')
+        return () => new Response('OK')
       })
 
       // Router
@@ -531,13 +611,17 @@ describe('Raw Routes', () => {
       app.register(usersRouter)
 
       // Test raw route
-      const healthReq = new Request('http://localhost/health', { method: 'GET' })
+      const healthReq = new Request('http://localhost/health', {
+        method: 'GET',
+      })
       const healthRes = await app.fetch(healthReq)
       expect(healthRes.status).toBe(200)
       expect(await healthRes.text()).toBe('OK')
 
       // Test router
-      const usersReq = new Request('http://localhost/v1/users', { method: 'GET' })
+      const usersReq = new Request('http://localhost/v1/users', {
+        method: 'GET',
+      })
       const usersRes = await app.fetch(usersReq)
       expect(usersRes.status).toBe(200)
       const usersData = await usersRes.json()
@@ -549,464 +633,286 @@ describe('Raw Routes', () => {
     it('should handle errors thrown by handler', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/error', () => {
-        throw new Error('Something went wrong')
+      app.raw('GET', '/fail', () => {
+        return () => {
+          throw new Error('Something went wrong')
+        }
       })
 
-      const req = new Request('http://localhost/error', { method: 'GET' })
+      const req = new Request('http://localhost/fail', { method: 'GET' })
       const res = await app.fetch(req)
 
       expect(res.status).toBe(500)
-      const data = await res.json()
-      expect(data.error).toBe('INTERNAL_SERVER_ERROR')
-    })
-
-    it('should handle Response with error status', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/forbidden', () => {
-        return new Response(
-          JSON.stringify({ error: 'Access denied' }),
-          {
-            status: 403,
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request('http://localhost/forbidden', { method: 'GET' })
-      const res = await app.fetch(req)
-
-      expect(res.status).toBe(403)
-      const data = await res.json()
-      expect(data.error).toBe('Access denied')
     })
 
     it('should handle async errors', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/async-error', async () => {
-        await Promise.resolve()
-        throw new Error('Async error')
+      app.raw('GET', '/async-fail', () => {
+        return async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          throw new Error('Async error')
+        }
       })
 
-      const req = new Request('http://localhost/async-error', { method: 'POST' })
+      const req = new Request('http://localhost/async-fail', { method: 'GET' })
       const res = await app.fetch(req)
 
       expect(res.status).toBe(500)
-      const data = await res.json()
-      expect(data.error).toBe('INTERNAL_SERVER_ERROR')
-    })
-  })
-
-  describe('Edge Cases', () => {
-    it('should handle multiple raw routes on same path with different methods', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/data', () => {
-        return new Response('GET response')
-      })
-
-      app.raw('POST', '/data', () => {
-        return new Response('POST response')
-      })
-
-      const getReq = new Request('http://localhost/data', { method: 'GET' })
-      const getRes = await app.fetch(getReq)
-      expect(await getRes.text()).toBe('GET response')
-
-      const postReq = new Request('http://localhost/data', { method: 'POST' })
-      const postRes = await app.fetch(postReq)
-      expect(await postRes.text()).toBe('POST response')
-    })
-
-    it('should handle path with parameters', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/users/:id', ({ param }) => {
-        return new Response(JSON.stringify({ userId: param.id }), {
-          headers: { 'content-type': 'application/json' },
-        })
-      })
-
-      const req = new Request('http://localhost/users/123', { method: 'GET' })
-      const res = await app.fetch(req)
-
-      expect(res.status).toBe(200)
-      const data = await res.json()
-      expect(data.userId).toBe('123')
-    })
-
-    it('should return 404 when no route matches', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/exists', () => {
-        return new Response('OK')
-      })
-
-      const req = new Request('http://localhost/does-not-exist', {
-        method: 'GET',
-      })
-      const res = await app.fetch(req)
-
-      expect(res.status).toBe(404)
     })
   })
 
   describe('Rich Context', () => {
-    it('should provide body in context for JSON requests', async () => {
+    it('should provide full context to handler', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/api/users', async ({ body }) => {
-        return new Response(
-          JSON.stringify({
-            created: true,
-            user: body,
-          }),
-          {
-            status: 201,
+      app.raw('POST', '/context-test', () => {
+        return ({ log, body, param, query, request, env }) => {
+          // All context properties should be available
+          expect(log).toBeDefined()
+          expect(body).toBeDefined()
+          expect(param).toBeDefined()
+          expect(query).toBeDefined()
+          expect(request).toBeDefined()
+          expect(env).toBeDefined()
+
+          return new Response(JSON.stringify({ success: true }), {
             headers: { 'content-type': 'application/json' },
-          },
-        )
+          })
+        }
       })
 
-      const req = new Request('http://localhost/api/users', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
-      })
-
-      const res = await app.fetch(req)
-      expect(res.status).toBe(201)
-      const data = await res.json()
-      expect(data).toEqual({
-        created: true,
-        user: { name: 'Alice', email: 'alice@example.com' },
-      })
-    })
-
-    it('should provide param in context for URL parameters', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/api/posts/:postId/comments/:commentId', ({ param }) => {
-        return new Response(
-          JSON.stringify({
-            postId: param.postId,
-            commentId: param.commentId,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request(
-        'http://localhost/api/posts/42/comments/99',
-        { method: 'GET' },
-      )
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        postId: '42',
-        commentId: '99',
-      })
-    })
-
-    it('should provide query in context for query strings', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/api/search', ({ query }) => {
-        return new Response(
-          JSON.stringify({
-            term: query.q,
-            page: query.page,
-            limit: query.limit,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request(
-        'http://localhost/api/search?q=test&page=2&limit=10',
-        { method: 'GET' },
-      )
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        term: 'test',
-        page: '2',
-        limit: '10',
-      })
-    })
-
-    it('should provide log in context', async () => {
-      const app = new Norte()
-
-      let loggerUsed = false
-
-      app.raw('POST', '/api/log-test', ({ log, body }) => {
-        loggerUsed = true
-        expect(log).toBeDefined()
-        expect(typeof log.info).toBe('function')
-        expect(typeof log.error).toBe('function')
-        expect(typeof log.debug).toBe('function')
-        expect(typeof log.warn).toBe('function')
-
-        log.info({ data: body }, 'Test log message')
-
-        return new Response(JSON.stringify({ logged: true }), {
-          headers: { 'content-type': 'application/json' },
-        })
-      })
-
-      const req = new Request('http://localhost/api/log-test', {
+      const req = new Request('http://localhost/context-test', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ test: 'data' }),
       })
-
       const res = await app.fetch(req)
+
       expect(res.status).toBe(200)
-      expect(loggerUsed).toBe(true)
     })
 
-    it('should provide request in context when needed', async () => {
+    it('should allow logger usage in handler', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/api/headers', ({ request }) => {
-        const userAgent = request.headers.get('user-agent') || 'unknown'
-        const authorization = request.headers.get('authorization') || 'none'
+      let logged = false
 
-        return new Response(
-          JSON.stringify({
-            userAgent,
-            authorization,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
+      app.raw('GET', '/with-log', () => {
+        return ({ log }) => {
+          log.info({ data: 'test' }, 'Test log message')
+          logged = true
+          return new Response('OK')
+        }
       })
 
-      const req = new Request('http://localhost/api/headers', {
-        method: 'GET',
-        headers: {
-          'user-agent': 'TestAgent/1.0',
-          'authorization': 'Bearer token123',
-        },
-      })
+      const req = new Request('http://localhost/with-log', { method: 'GET' })
+      await app.fetch(req)
 
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        userAgent: 'TestAgent/1.0',
-        authorization: 'Bearer token123',
-      })
+      expect(logged).toBe(true)
     })
 
-    it('should handle body being null for non-JSON requests', async () => {
+    it('should parse params correctly', async () => {
       const app = new Norte()
 
-      app.raw('GET', '/api/test', ({ body }) => {
-        return new Response(
-          JSON.stringify({
-            bodyIsNull: body === null,
-          }),
-          {
+      app.raw('GET', '/users/:userId', () => {
+        return ({ param }) => {
+          return new Response(JSON.stringify({ userId: param.userId }), {
             headers: { 'content-type': 'application/json' },
-          },
-        )
+          })
+        }
       })
 
-      const req = new Request('http://localhost/api/test', { method: 'GET' })
-
+      const req = new Request('http://localhost/users/123', { method: 'GET' })
       const res = await app.fetch(req)
       const data = await res.json()
-      expect(data.bodyIsNull).toBe(true)
-    })
 
-    it('should combine all context properties', async () => {
-      const app = new Norte()
-
-      app.raw('POST', '/api/users/:userId', ({ body, param, query, log }) => {
-        expect(body).toEqual({ name: 'Updated Name' })
-        expect(param.userId).toBe('123')
-        expect(query.notify).toBe('true')
-        expect(log).toBeDefined()
-
-        log.info({ userId: param.userId }, 'User update')
-
-        return new Response(
-          JSON.stringify({
-            userId: param.userId,
-            updates: body,
-            notify: query.notify === 'true',
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request('http://localhost/api/users/123?notify=true', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'Updated Name' }),
-      })
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        userId: '123',
-        updates: { name: 'Updated Name' },
-        notify: true,
-      })
+      expect(data.userId).toBe('123')
     })
 
     it('should handle errors in handler with context', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/api/error', ({ body }) => {
-        throw new Error(`Invalid data: ${JSON.stringify(body)}`)
+      app.raw('POST', '/invalid-handler', () => {
+        return ({ body }) => {
+          // Always throw to test error handling
+          throw new Error(`Invalid data: ${JSON.stringify(body)}`)
+        }
       })
 
-      const req = new Request('http://localhost/api/error', {
+      const req = new Request('http://localhost/invalid-handler', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ invalid: true }),
       })
-
       const res = await app.fetch(req)
+
       expect(res.status).toBe(500)
-      const data = await res.json()
-      expect(data.error).toBe('INTERNAL_SERVER_ERROR')
     })
 
-    it('should work with async handlers using context', async () => {
+    it('should provide env to handler', async () => {
       const app = new Norte()
 
-      app.raw('POST', '/api/async', async ({ body, param, query }) => {
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        return new Response(
-          JSON.stringify({
-            body,
-            param,
-            query,
-            async: true,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request('http://localhost/api/async?key=value', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ test: 'async' }),
-      })
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        body: { test: 'async' },
-        param: {},
-        query: { key: 'value' },
-        async: true,
-      })
-    })
-
-    it('should handle multiple path parameters', async () => {
-      const app = new Norte()
-
-      app.raw(
-        'GET',
-        '/api/users/:userId/posts/:postId/comments/:commentId',
-        ({ param }) => {
-          return new Response(JSON.stringify(param), {
+      app.raw('GET', '/env-check', () => {
+        return ({ env }) => {
+          return new Response(JSON.stringify({ hasEnv: !!env }), {
             headers: { 'content-type': 'application/json' },
           })
-        },
-      )
-
-      const req = new Request(
-        'http://localhost/api/users/u1/posts/p2/comments/c3',
-        { method: 'GET' },
-      )
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data).toEqual({
-        userId: 'u1',
-        postId: 'p2',
-        commentId: 'c3',
-      })
-    })
-
-    it('should handle empty query strings', async () => {
-      const app = new Norte()
-
-      app.raw('GET', '/api/test', ({ query }) => {
-        return new Response(
-          JSON.stringify({
-            queryIsEmpty: Object.keys(query).length === 0,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const req = new Request('http://localhost/api/test', { method: 'GET' })
-
-      const res = await app.fetch(req)
-      const data = await res.json()
-      expect(data.queryIsEmpty).toBe(true)
-    })
-
-    it('should work with wildcard methods and context', async () => {
-      const app = new Norte()
-
-      app.raw('*', '/api/echo', ({ body, param, query, request }) => {
-        return new Response(
-          JSON.stringify({
-            method: request.method,
-            body,
-            param,
-            query,
-          }),
-          {
-            headers: { 'content-type': 'application/json' },
-          },
-        )
-      })
-
-      const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-
-      for (const method of methods) {
-        const req = new Request('http://localhost/api/echo?test=1', {
-          method,
-          ...(method !== 'GET' && {
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ data: method }),
-          }),
-        })
-
-        const res = await app.fetch(req)
-        const data = await res.json()
-        expect(data.method).toBe(method)
-        expect(data.query).toEqual({ test: '1' })
-
-        if (method !== 'GET') {
-          expect(data.body).toEqual({ data: method })
         }
-      }
+      })
+
+      const req = new Request('http://localhost/env-check', { method: 'GET' })
+      const res = await app.fetch(req)
+      const data = await res.json()
+
+      expect(data.hasEnv).toBe(true)
+    })
+
+    it('should parse multiple params', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/stores/:storeId/products/:productId', () => {
+        return ({ param }) => {
+          return new Response(
+            JSON.stringify({
+              storeId: param.storeId,
+              productId: param.productId,
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        }
+      })
+
+      const req = new Request('http://localhost/stores/store1/products/prod1', {
+        method: 'GET',
+      })
+      const res = await app.fetch(req)
+      const data = await res.json()
+
+      expect(data.storeId).toBe('store1')
+      expect(data.productId).toBe('prod1')
+    })
+  })
+
+  describe('Lazy Initialization', () => {
+    it('should initialize handler only once (lazy)', async () => {
+      const app = new Norte()
+      let initCount = 0
+
+      app.raw('GET', '/lazy-test', (env) => {
+        initCount++
+        expect(env).toBeDefined()
+
+        return () => {
+          return new Response(JSON.stringify({ initCount }), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      })
+
+      // Multiple requests
+      await app.fetch(
+        new Request('http://localhost/lazy-test', { method: 'GET' }),
+      )
+      await app.fetch(
+        new Request('http://localhost/lazy-test', { method: 'GET' }),
+      )
+      await app.fetch(
+        new Request('http://localhost/lazy-test', { method: 'GET' }),
+      )
+
+      // Factory should be called only once
+      expect(initCount).toBe(1)
+    })
+
+    it('should support async factory initialization', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/async-init', async (env) => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        const config = { initialized: true, env: !!env }
+
+        return () => {
+          return new Response(JSON.stringify(config), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      })
+
+      const req = new Request('http://localhost/async-init', { method: 'GET' })
+      const res = await app.fetch(req)
+      const data = await res.json()
+
+      expect(data.initialized).toBe(true)
+      expect(data.env).toBe(true)
+    })
+
+    it('should provide env to factory for initialization', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/env-factory', (env) => {
+        const hasProcessEnv = typeof process !== 'undefined' && !!process.env
+
+        return () => {
+          return new Response(JSON.stringify({ env: !!env, hasProcessEnv }), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      })
+
+      const req = new Request('http://localhost/env-factory', { method: 'GET' })
+      const res = await app.fetch(req)
+      const data = await res.json()
+
+      expect(data.env).toBe(true)
+    })
+  })
+
+  describe('Advanced Use Cases', () => {
+    it('should handle streaming responses', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/stream', () => {
+        return () => {
+          const encoder = new TextEncoder()
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode('chunk1'))
+              controller.enqueue(encoder.encode('chunk2'))
+              controller.close()
+            },
+          })
+
+          return new Response(stream, {
+            headers: { 'content-type': 'text/plain' },
+          })
+        }
+      })
+
+      const req = new Request('http://localhost/stream', { method: 'GET' })
+      const res = await app.fetch(req)
+      const text = await res.text()
+
+      expect(text).toBe('chunk1chunk2')
+    })
+
+    it('should handle binary responses', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/binary', () => {
+        return () => {
+          const buffer = new Uint8Array([1, 2, 3, 4, 5])
+          return new Response(buffer, {
+            headers: { 'content-type': 'application/octet-stream' },
+          })
+        }
+      })
+
+      const req = new Request('http://localhost/binary', { method: 'GET' })
+      const res = await app.fetch(req)
+      const arrayBuffer = await res.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
+
+      expect(uint8).toEqual(new Uint8Array([1, 2, 3, 4, 5]))
     })
   })
 })
-

@@ -24,20 +24,8 @@ export class Logger {
       return pino(loggerOptions)
     }
 
-    const isProduction = process.env.NODE_ENV === 'production'
     const baseConfig: Record<string, unknown> = {
-      level: isProduction ? 'info' : 'debug',
-    }
-
-    if (!isProduction) {
-      baseConfig.transport = {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss.l',
-          ignore: 'pid,hostname',
-        },
-      }
+      level: 'info',
     }
 
     return pino(baseConfig)

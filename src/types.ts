@@ -109,8 +109,10 @@ export type RawHandlerContext = {
 }
 
 export type RawHandler = (
-  ctx: RawHandlerContext,
-) => Response | Promise<Response>
+  env: Env,
+) =>
+  | ((ctx: RawHandlerContext) => Response | Promise<Response>)
+  | Promise<(ctx: RawHandlerContext) => Response | Promise<Response>>
 
 // Router
 export type RouterOptions = {

@@ -216,20 +216,22 @@ describe('Environment (env)', () => {
   test('should work with raw routes', async () => {
     process.env.DATABASE_URL = 'postgres://localhost:5432/testdb'
 
-    app.raw('GET', '/health', async (ctx) => {
-      // Access env in raw route
-      const dbUrl = ctx.env.DATABASE_URL
+    app.raw('GET', '/health', () => {
+      return async (ctx) => {
+        // Access env in raw route
+        const dbUrl = ctx.env.DATABASE_URL
 
-      return new Response(
-        JSON.stringify({
-          status: 'healthy',
-          database: dbUrl,
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      )
+        return new Response(
+          JSON.stringify({
+            status: 'healthy',
+            database: dbUrl,
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
+      }
     })
 
     const req = new Request('http://localhost/health', {

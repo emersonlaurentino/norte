@@ -429,11 +429,13 @@ describe('Error Handling', () => {
     const app = new Norte()
 
     // Raw route - for documentation or other custom responses
-    app.raw('GET', '/docs/api', async () => {
-      return new Response('API Documentation', {
-        status: 200,
-        headers: { 'content-type': 'text/html' },
-      })
+    app.raw('GET', '/docs/api', () => {
+      return async () => {
+        return new Response('API Documentation', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      }
     })
 
     const req = new Request('http://localhost/docs/api', { method: 'GET' })

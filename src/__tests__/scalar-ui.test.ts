@@ -68,7 +68,7 @@ describe('Scalar UI', () => {
     })
 
     app.raw('GET', '/', () => {
-      return new Response('Custom Root')
+      return () => new Response('Custom Root')
     })
 
     const req = new Request('http://localhost/')
@@ -83,7 +83,7 @@ describe('Scalar UI', () => {
 
     // Tenta registrar rota raw na /
     app.raw('GET', '/', () => {
-      return new Response('Custom Root')
+      return () => new Response('Custom Root')
     })
 
     const req = new Request('http://localhost/')
@@ -102,7 +102,7 @@ describe('Scalar UI', () => {
     const app = new Norte()
 
     app.raw('GET', '/custom', () => {
-      return new Response('Custom Route')
+      return () => new Response('Custom Route')
     })
 
     const req = new Request('http://localhost/custom')
