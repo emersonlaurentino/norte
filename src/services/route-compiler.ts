@@ -14,7 +14,7 @@ import type {
   Store,
 } from '../types'
 import type { ErrorHandler } from './error-handler'
-import type { Logger } from './logger'
+import { Logger } from './logger'
 import type { PathBuilder } from './path-builder'
 import type { RouteMatcher } from './route-matcher'
 import type { Validator } from './validator'
@@ -172,8 +172,8 @@ export class RouteCompiler {
       params: Record<string, string>,
       cloudflareEnv?: Env,
     ): Promise<Response> => {
+      const log: NorteLogger = this.#logger.createLogger(req)
       try {
-        const log: NorteLogger = this.#logger.createLogger(req)
 
         const url = new URL(req.url)
 
@@ -198,7 +198,6 @@ export class RouteCompiler {
 
         const error = (code: string, msg: string) => new NorteError(code, msg)
 
-        // Get env (Cloudflare or process.env)
         const env = this.#getEnv(cloudflareEnv)
 
         for (const hook of beforeHooks) {
@@ -302,6 +301,11 @@ export class RouteCompiler {
 
         const responseHeaders = new Headers()
         const responseState = { status: defaultStatus }
+        const requestId = Logger.getRequestId(log, req)
+
+        if (requestId) {
+          responseHeaders.set('X-Request-ID', requestId)
+        }
 
         for (const hook of afterHooks) {
           await hook({
@@ -315,7 +319,15 @@ export class RouteCompiler {
         }
 
         if (result instanceof Response) {
-          return result
+          const customHeaders = new Headers(result.headers)
+          if (requestId && !customHeaders.has('X-Request-ID')) {
+            customHeaders.set('X-Request-ID', requestId)
+          }
+          return new Response(result.body, {
+            status: result.status,
+            statusText: result.statusText,
+            headers: customHeaders,
+          })
         }
 
         if (defaultStatus === 204) {
@@ -331,7 +343,8 @@ export class RouteCompiler {
           headers: responseHeaders,
         })
       } catch (err) {
-        return this.#errorHandler.handle(err)
+        const requestId = Logger.getRequestId(log, req)
+        return this.#errorHandler.handle(err, requestId)
       }
     }
   }

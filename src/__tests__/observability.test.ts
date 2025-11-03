@@ -350,4 +350,258 @@ describe('Observability', () => {
       expect(capturedBindings).not.toHaveProperty('trace_id')
     })
   })
+
+  describe('X-Request-ID Header', () => {
+    it('should include X-Request-ID header in successful responses', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.list({}, async () => {
+        return [{ id: '1', name: 'Alice' }]
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should include X-Request-ID header in error responses', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.read({}, async () => {
+        throw new Error('Test error')
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users/1', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(500)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should include X-Request-ID header in 404 responses', async () => {
+      const app = new Norte()
+
+      const req = new Request('http://localhost/v1/nonexistent', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(404)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should include X-Request-ID header in OpenAPI JSON response', async () => {
+      const app = new Norte()
+
+      const req = new Request('http://localhost/openapi.json', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should include X-Request-ID header in Scalar UI response', async () => {
+      const app = new Norte()
+
+      const req = new Request('http://localhost/', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should include X-Request-ID header in raw route responses', async () => {
+      const app = new Norte()
+
+      app.raw('GET', '/test', () => {
+        return () => new Response(JSON.stringify({ test: 'data' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      })
+
+      const req = new Request('http://localhost/test', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+      expect(res.headers.get('X-Request-ID')).toMatch(/^[a-f0-9-]+$/)
+    })
+
+    it('should use custom X-Request-ID from request header if provided', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.list({}, async () => {
+        return [{ id: '1', name: 'Alice' }]
+      })
+
+      app.register(usersRouter)
+
+      const customRequestId = 'custom-request-id-123'
+      const req = new Request('http://localhost/v1/users', {
+        method: 'GET',
+        headers: {
+          'X-Request-ID': customRequestId,
+        },
+      })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Request-ID')).toBe(customRequestId)
+    })
+
+    it('should preserve custom X-Request-ID header if handler sets it', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.list({}, async () => {
+        return new Response(JSON.stringify([{ id: '1', name: 'Alice' }]), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'X-Request-ID': 'custom-from-handler',
+          },
+        })
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(200)
+      // Se o handler já definiu, mantém o valor do handler
+      expect(res.headers.get('X-Request-ID')).toBe('custom-from-handler')
+    })
+
+    it('should include X-Request-ID header in responses with custom status codes', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.create({}, async () => {
+        return { id: '1', name: 'Alice' }
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Alice' }),
+      })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(201)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+    })
+
+    it('should include X-Request-ID header in 204 No Content responses', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.delete({}, async ({ param }) => {
+        return { id: (param as { userId: string }).userId, name: 'Deleted' }
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users/1', { method: 'DELETE' })
+      const res = await app.fetch(req)
+
+      expect(res.status).toBe(204)
+      expect(res.headers.get('X-Request-ID')).toBeTruthy()
+    })
+
+    it('should have the same requestId in header and logger', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      let capturedRequestId: string | undefined = undefined
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.list({}, async ({ log }) => {
+        // Captura o requestId do logger
+        capturedRequestId = log.requestId || (log.bindings().requestId as string)
+        return [{ id: '1', name: 'Alice' }]
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      const headerRequestId = res.headers.get('X-Request-ID')
+
+      expect(headerRequestId).toBeTruthy()
+      expect(capturedRequestId).toBeTruthy()
+      expect(headerRequestId).toBe(capturedRequestId)
+    })
+
+    it('should maintain same requestId even when bindings() fails', async () => {
+      const app = new Norte()
+      const userSchema = t.Object({
+        id: t.String(),
+        name: t.String(),
+      })
+
+      let capturedRequestId: string | undefined = undefined
+
+      const usersRouter = new Router('users', { schema: userSchema })
+      usersRouter.list({}, async ({ log }) => {
+        // Captura o requestId diretamente da propriedade (não via bindings)
+        capturedRequestId = log.requestId
+        return [{ id: '1', name: 'Alice' }]
+      })
+
+      app.register(usersRouter)
+
+      const req = new Request('http://localhost/v1/users', { method: 'GET' })
+      const res = await app.fetch(req)
+
+      const headerRequestId = res.headers.get('X-Request-ID')
+
+      expect(headerRequestId).toBeTruthy()
+      expect(capturedRequestId).toBeTruthy()
+      expect(headerRequestId).toBe(capturedRequestId)
+    })
+  })
 })

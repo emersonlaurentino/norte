@@ -11,7 +11,12 @@ export class ErrorHandler {
     INTERNAL_SERVER_ERROR: 500,
   }
 
-  public handle(err: unknown): Response {
+  public handle(err: unknown, requestId?: string): Response {
+    const headers = new Headers({ 'content-type': 'application/json' })
+    if (requestId) {
+      headers.set('X-Request-ID', requestId)
+    }
+
     if (err instanceof NorteError) {
       const statusCode = this.#getStatusCode(err.code)
       return new Response(
@@ -21,7 +26,7 @@ export class ErrorHandler {
         }),
         {
           status: statusCode,
-          headers: { 'content-type': 'application/json' },
+          headers,
         },
       )
     }
@@ -34,7 +39,7 @@ export class ErrorHandler {
       }),
       {
         status: 500,
-        headers: { 'content-type': 'application/json' },
+        headers,
       },
     )
   }
@@ -43,7 +48,11 @@ export class ErrorHandler {
     return this.#errorCodeToStatusMap[code] || 500
   }
 
-  public createNotFoundResponse(): Response {
+  public createNotFoundResponse(requestId?: string): Response {
+    const headers = new Headers({ 'content-type': 'application/json' })
+    if (requestId) {
+      headers.set('X-Request-ID', requestId)
+    }
     return new Response(
       JSON.stringify({
         error: 'NOT_FOUND',
@@ -51,7 +60,7 @@ export class ErrorHandler {
       }),
       {
         status: 404,
-        headers: { 'content-type': 'application/json' },
+        headers,
       },
     )
   }

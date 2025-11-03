@@ -121,26 +121,21 @@ export class Norte {
         params: Record<string, string>,
         cloudflareEnv?: Env,
       ) => {
+        const log = this.#logger.createLogger(req)
         try {
-          const log = this.#logger.createLogger(req)
           log.debug({ method, path: normalizedPath }, 'Raw route executed')
 
           const url = new URL(req.url)
           const query = Object.fromEntries(url.searchParams.entries())
 
-          // Parse body
           let body: unknown = null
           const contentType = req.headers.get('content-type')
           if (contentType?.includes('application/json') && req.body) {
             body = await req.json()
           }
 
-          // Get env (Cloudflare or process.env)
           const env = this.#getEnv(cloudflareEnv)
 
-          // Lazy initialization - só inicializa no primeiro request
-          // Proteção contra race condition: se múltiplos requests chegarem simultaneamente,
-          // apenas o primeiro inicializa, os demais aguardam
           if (!initializedHandler && !initPromise) {
             initPromise = Promise.resolve(handler(env)).then((h) => {
               initializedHandler = h
@@ -152,7 +147,6 @@ export class Norte {
             initPromise = undefined
           }
 
-          // Execute handler inicializado
           if (!initializedHandler) {
             throw new Error('Handler not initialized')
           }
@@ -166,11 +160,22 @@ export class Norte {
             env,
           })
 
-          // Garante que sempre retornamos uma Promise<Response>
-          // Isso é necessário para compatibilidade com Cloudflare Workers
-          return await Promise.resolve(result)
+          const response = await Promise.resolve(result)
+          const requestId = Logger.getRequestId(log, req)
+          if (requestId && response instanceof Response && !response.headers.has('X-Request-ID')) {
+            const customHeaders = new Headers(response.headers)
+            customHeaders.set('X-Request-ID', requestId)
+            return new Response(response.body, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: customHeaders,
+            })
+          }
+
+          return response
         } catch (err) {
-          return this.#errorHandler.handle(err)
+          const requestId = Logger.getRequestId(log, req)
+          return this.#errorHandler.handle(err, requestId)
         }
       },
     }
@@ -202,6 +207,8 @@ export class Norte {
     const pathname = url.pathname
 
     if (method === 'GET' && pathname === '/openapi.json') {
+      const log = this.#logger.createLogger(req)
+      const requestId = Logger.getRequestId(log, req)
       const openApiDoc = this.#openApiGenerator.generateDocument(req)
       const hasCustomServers = this.#openApiGenerator.hasCustomServers()
       const cacheControl = hasCustomServers
@@ -213,11 +220,14 @@ export class Norte {
         headers: {
           'content-type': 'application/json',
           'cache-control': cacheControl,
+          'X-Request-ID': requestId,
         },
       })
     }
 
     if (method === 'GET' && pathname === '/' && this.#scalarEnabled) {
+      const log = this.#logger.createLogger(req)
+      const requestId = Logger.getRequestId(log, req)
       const html = `<!doctype html>
 <html>
   <head>
@@ -251,6 +261,7 @@ export class Norte {
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
+          'X-Request-ID': requestId,
         },
       })
     }
@@ -285,6 +296,8 @@ export class Norte {
       }
     }
 
-    return this.#errorHandler.createNotFoundResponse()
+    const log = this.#logger.createLogger(req)
+    const requestId = Logger.getRequestId(log, req)
+    return this.#errorHandler.createNotFoundResponse(requestId)
   }
 }

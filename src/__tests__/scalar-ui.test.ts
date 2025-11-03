@@ -174,7 +174,7 @@ describe('Scalar UI', () => {
     const res = await app.fetch(req)
 
     const html = await res.text()
-    expect(html).toContain('"sources":[{"url":"/openapi.json"}]')
+    expect(html).toContain('"sources":[{"url":"/openapi.json","title":"API","default":true}]')
   })
 
   it('should extend Norte source with custom sources', async () => {

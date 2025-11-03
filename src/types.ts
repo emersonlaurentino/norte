@@ -30,6 +30,7 @@ export interface NorteLogger {
   child(bindings: object): NorteLogger
   bindings(): Record<string, unknown>
   level: string
+  requestId?: string
 }
 
 export type LogLevel =

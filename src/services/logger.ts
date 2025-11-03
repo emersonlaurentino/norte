@@ -68,6 +68,32 @@ export class Logger {
       bindings.service = this.#telemetryServiceName
     }
 
-    return this.#baseLogger.child(bindings) as NorteLogger
+    const childLogger = this.#baseLogger.child(bindings) as NorteLogger
+    return Object.assign(childLogger, { requestId }) as NorteLogger
+  }
+
+  public static getRequestId(log: NorteLogger | undefined, req: Request): string {
+    if (log?.requestId) {
+      return log.requestId
+    }
+
+    if (log) {
+      try {
+        if (typeof log.bindings === 'function') {
+          const bindings = log.bindings()
+          if (bindings && typeof bindings.requestId === 'string') {
+            return bindings.requestId
+          }
+        }
+      } catch {
+        // no-op
+      }
+    }
+
+    const headerRequestId = req.headers.get('X-Request-ID')
+    if (headerRequestId) {
+      return headerRequestId
+    }
+    return crypto.randomUUID()
   }
 }
