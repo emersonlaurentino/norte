@@ -23,6 +23,7 @@ export type {
   NorteStore,
   OpenAPIRouteMetadata,
   OpenAPIServerConfig,
+  OpenAPISource,
   PaginatedResponse,
   PaginationContext,
   PaginationMeta,

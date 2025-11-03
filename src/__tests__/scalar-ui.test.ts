@@ -171,5 +171,57 @@ describe('Scalar UI', () => {
     // Verifica que o Scalar está configurado para usar /openapi.json
     expect(html).toContain('/openapi.json')
   })
+
+  it('deve adicionar o openapi do Norte automaticamente nas sources', async () => {
+    const app = new Norte()
+
+    const req = new Request('http://localhost/')
+    const res = await app.fetch(req)
+
+    const html = await res.text()
+    // Deve conter a configuração com /openapi.json
+    expect(html).toContain('{"spec":{"content":[{"url":"/openapi.json"}]}}')
+  })
+
+  it('deve adicionar sources externas junto com o openapi do Norte', async () => {
+    const app = new Norte({
+      openapi: {
+        title: 'Test API',
+        sources: [
+          { url: 'https://api.external.com/openapi.json', label: 'External API' },
+          { url: 'https://api.another.com/openapi.json' },
+        ],
+      },
+    })
+
+    const req = new Request('http://localhost/')
+    const res = await app.fetch(req)
+
+    const html = await res.text()
+    
+    // Deve conter todas as sources
+    expect(html).toContain('/openapi.json')
+    expect(html).toContain('https://api.external.com/openapi.json')
+    expect(html).toContain('External API')
+    expect(html).toContain('https://api.another.com/openapi.json')
+  })
+
+  it('deve funcionar sem sources externas', async () => {
+    const app = new Norte({
+      openapi: {
+        title: 'Test API',
+        sources: [],
+      },
+    })
+
+    const req = new Request('http://localhost/')
+    const res = await app.fetch(req)
+
+    expect(res.status).toBe(200)
+    const html = await res.text()
+    
+    // Deve conter apenas o openapi do Norte
+    expect(html).toContain('{"spec":{"content":[{"url":"/openapi.json"}]}}')
+  })
 })
 

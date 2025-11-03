@@ -26,6 +26,7 @@ export class Norte {
   #errorHandler: ErrorHandler
   #routeCompiler: RouteCompiler
   #scalarEnabled: boolean
+  #scalarSources: string
 
   constructor(options: NorteOptions = {}) {
     this.#logger = new Logger(options.logger, options.telemetry)
@@ -35,6 +36,13 @@ export class Norte {
     this.#openApiGenerator = new OpenAPIGenerator(options.openapi)
     this.#errorHandler = new ErrorHandler()
     this.#scalarEnabled = options.openapi?.ui !== false
+
+    // Build sources for Scalar UI
+    const sources = [{ url: '/openapi.json' }]
+    if (options.openapi?.sources) {
+      sources.push(...options.openapi.sources)
+    }
+    this.#scalarSources = JSON.stringify(sources)
 
     this.#routeCompiler = new RouteCompiler(
       this.#validator,
@@ -186,7 +194,7 @@ export class Norte {
   <body>
     <script
       id="api-reference"
-      data-url="/openapi.json"
+      data-configuration='{"spec":{"content":${this.#scalarSources}}}'
     ></script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>

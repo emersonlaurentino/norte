@@ -105,7 +105,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('*', '/api/echo', async ({ request }) => {
-        return new Response(JSON.stringify({ method: request?.method }), {
+        return new Response(JSON.stringify({ method: request.method }), {
           headers: { 'content-type': 'application/json' },
         })
       })
@@ -148,7 +148,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
-        return new Response(`${request?.method} /post`, { status: 200 })
+        return new Response(`${request.method} /post`, { status: 200 })
       })
 
       const putReq = new Request('http://localhost/post', { method: 'PUT' })
@@ -166,7 +166,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['PUT', 'DELETE'], '/post', ({ request }) => {
-        return new Response(`${request?.method} /post`, { status: 200 })
+        return new Response(`${request.method} /post`, { status: 200 })
       })
 
       const getReq = new Request('http://localhost/post', { method: 'GET' })
@@ -182,7 +182,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw(['GET', 'POST', 'PUT'], '/api/resource', async ({ request }) => {
-        const data = { method: request?.method, timestamp: Date.now() }
+        const data = { method: request.method, timestamp: Date.now() }
         return new Response(JSON.stringify(data), {
           headers: { 'content-type': 'application/json' },
         })
@@ -241,7 +241,7 @@ describe('Raw Routes', () => {
 
       app.raw(['PUT', 'PATCH'], '/users/:id', ({ request, param }) => {
         return new Response(
-          JSON.stringify({ action: 'update', method: request?.method, id: param.id }),
+          JSON.stringify({ action: 'update', method: request.method, id: param.id }),
           { headers: { 'content-type': 'application/json' } },
         )
       })
@@ -265,7 +265,7 @@ describe('Raw Routes', () => {
       app.raw(['POST', 'PUT'], '/async-resource', async ({ request }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
         return new Response(
-          JSON.stringify({ processed: true, method: request?.method }),
+          JSON.stringify({ processed: true, method: request.method }),
           { headers: { 'content-type': 'application/json' } },
         )
       })
@@ -309,7 +309,7 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/api/v1/:wildcard', ({ request }) => {
-        const url = new URL(request?.url || '')
+        const url = new URL(request.url)
         return new Response(
           JSON.stringify({ path: url.pathname }),
           { headers: { 'content-type': 'application/json' } },
@@ -333,10 +333,10 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('*', '/api/auth/:action', ({ request }) => {
-        const url = new URL(request?.url || '')
+        const url = new URL(request.url)
         return new Response(
           JSON.stringify({
-            method: request?.method,
+            method: request.method,
             path: url.pathname,
           }),
           { headers: { 'content-type': 'application/json' } },
@@ -387,17 +387,17 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       // Simulate Better-Auth handler
-      const authHandler = ({ request }: { request?: Request }) => {
-        const url = new URL(request?.url || '')
+      const authHandler = ({ request }: { request: Request }) => {
+        const url = new URL(request.url)
         const path = url.pathname
 
-        if (path === '/api/auth/signin' && request?.method === 'POST') {
+        if (path === '/api/auth/signin' && request.method === 'POST') {
           return new Response(JSON.stringify({ token: 'abc123' }), {
             headers: { 'content-type': 'application/json' },
           })
         }
 
-        if (path === '/api/auth/signout' && request?.method === 'POST') {
+        if (path === '/api/auth/signout' && request.method === 'POST') {
           return new Response(null, { status: 204 })
         }
 
@@ -778,8 +778,8 @@ describe('Raw Routes', () => {
       const app = new Norte()
 
       app.raw('GET', '/api/headers', ({ request }) => {
-        const userAgent = request?.headers.get('user-agent') || 'unknown'
-        const authorization = request?.headers.get('authorization') || 'none'
+        const userAgent = request.headers.get('user-agent') || 'unknown'
+        const authorization = request.headers.get('authorization') || 'none'
 
         return new Response(
           JSON.stringify({
@@ -975,7 +975,7 @@ describe('Raw Routes', () => {
       app.raw('*', '/api/echo', ({ body, param, query, request }) => {
         return new Response(
           JSON.stringify({
-            method: request?.method,
+            method: request.method,
             body,
             param,
             query,

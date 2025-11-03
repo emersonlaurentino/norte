@@ -79,7 +79,7 @@ export type HandlerContext = BaseContext & {
   body: unknown
   param: Record<string, unknown>
   query: Record<string, unknown>
-  request?: Request
+  request: Request
 }
 
 export type PaginationContext = {
@@ -104,7 +104,7 @@ export type RawHandlerContext = {
   body: unknown
   param: Record<string, unknown>
   query: Record<string, unknown>
-  request?: Request
+  request: Request
   env: Env
 }
 
@@ -134,6 +134,11 @@ export type OpenAPIServerConfig = {
   description?: string
 }
 
+export type OpenAPISource = {
+  url: string
+  label?: string
+}
+
 export type NorteOptions = {
   logger?: LoggerOptions
   telemetry?: TelemetryOptions
@@ -143,6 +148,7 @@ export type NorteOptions = {
     description?: string
     servers?: OpenAPIServerConfig[]
     ui?: boolean
+    sources?: OpenAPISource[]
   }
 }
 
