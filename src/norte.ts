@@ -37,12 +37,7 @@ export class Norte {
     this.#openApiGenerator = new OpenAPIGenerator(options.openapi)
     this.#errorHandler = new ErrorHandler()
     this.#scalarEnabled = options.openapi?.ui !== false
-
-    // Build configuration for Scalar UI
-    // For now, we only support the Norte's own OpenAPI spec
-    // TODO: Add support for multiple specs (custom sources) once we understand the Scalar API better
-    this.#scalarSources = '"/openapi.json"'
-
+    this.#scalarSources = this.#buildScalarSources(options.openapi?.sources)
     this.#routeCompiler = new RouteCompiler(
       this.#validator,
       this.#pathBuilder,
@@ -50,6 +45,17 @@ export class Norte {
       this.#logger,
       this.#errorHandler,
     )
+  }
+
+  #buildScalarSources(
+    sources?: {
+      url: string
+      title?: string
+    }[],
+  ): string {
+    const norteSource = { url: '/openapi.json', title: 'API', default: true }
+    const allSources = [norteSource, ...(sources || [])]
+    return `"sources":${JSON.stringify(allSources)}`
   }
 
   public register(router: Router) {
@@ -215,7 +221,7 @@ export class Norte {
       const html = `<!doctype html>
 <html>
   <head>
-    <title>API Reference</title>
+    <title>${this.#openApiGenerator.getTitle()}</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
@@ -226,12 +232,18 @@ export class Norte {
     </style>
   </head>
   <body>
-    <script
-      id="api-reference"
-      type="application/json"
-      data-configuration='{"spec":{"url":${this.#scalarSources}}}'
-    ></script>
+    <div id="scalar-api-reference"></div>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <script>
+      const apiReferenceElement = document.getElementById('scalar-api-reference')
+      Scalar.createApiReference(
+        apiReferenceElement,
+        {
+          showToolbar: 'never',
+          ${this.#scalarSources}
+        }
+      )
+    </script>
   </body>
 </html>`
 

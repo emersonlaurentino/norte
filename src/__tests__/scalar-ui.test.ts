@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { t } from '../index'
 import { Norte } from '../norte'
 import { Router } from '../router'
-import { t } from '../index'
 
 describe('Scalar UI', () => {
   it('deve servir Scalar UI na rota / por padrão', async () => {
@@ -12,7 +12,7 @@ describe('Scalar UI', () => {
 
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/html')
-    
+
     const html = await res.text()
     expect(html).toContain('scalar') // Scalar deve estar presente no HTML
   })
@@ -92,7 +92,7 @@ describe('Scalar UI', () => {
     // Scalar tem prioridade, então deve servir Scalar, não a rota raw
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/html')
-    
+
     const html = await res.text()
     expect(html).not.toBe('Custom Root')
     expect(html).toContain('scalar')
@@ -155,7 +155,7 @@ describe('Scalar UI', () => {
 
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/json')
-    
+
     const doc = await res.json()
     expect(doc.openapi).toBeDefined()
     expect(doc.info.title).toBe('Test API')
@@ -179,37 +179,20 @@ describe('Scalar UI', () => {
     const res = await app.fetch(req)
 
     const html = await res.text()
-    // Deve conter a configuração com /openapi.json
-    expect(html).toContain('{"spec":{"url":"/openapi.json"}}')
+    expect(html).toContain('"sources":[{"url":"/openapi.json"}]')
   })
 
-  it('deve adicionar sources externas junto com o openapi do Norte', async () => {
+  it('deve estender o source do Norte com sources customizadas', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',
         sources: [
-          { url: 'https://api.external.com/openapi.json', label: 'External API' },
-          { url: 'https://api.another.com/openapi.json' },
+          { url: '/auth/open-api/generate-schema', title: 'Auth API' },
+          {
+            url: 'https://api.external.com/openapi.json',
+            title: 'External API',
+          },
         ],
-      },
-    })
-
-    const req = new Request('http://localhost/')
-    const res = await app.fetch(req)
-
-    const html = await res.text()
-    
-    // Por enquanto, apenas o OpenAPI do Norte é suportado no Scalar UI
-    // TODO: Implementar suporte para múltiplas sources quando entendermos a API do Scalar
-    expect(html).toContain('/openapi.json')
-    expect(html).toContain('{"spec":{"url":"/openapi.json"}}')
-  })
-
-  it('deve funcionar sem sources externas', async () => {
-    const app = new Norte({
-      openapi: {
-        title: 'Test API',
-        sources: [],
       },
     })
 
@@ -218,9 +201,11 @@ describe('Scalar UI', () => {
 
     expect(res.status).toBe(200)
     const html = await res.text()
-    
-    // Deve conter apenas o openapi do Norte
-    expect(html).toContain('{"spec":{"url":"/openapi.json"}}')
+
+    expect(html).toContain('/openapi.json')
+    expect(html).toContain('/auth/open-api/generate-schema')
+    expect(html).toContain('https://api.external.com/openapi.json')
+    expect(html).toContain('"title":"Auth API"')
+    expect(html).toContain('"title":"External API"')
   })
 })
-

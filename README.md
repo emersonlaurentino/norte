@@ -576,6 +576,64 @@ These hints are used by the Norte CLI to generate type-safe clients with automat
 
 **📖 Full OpenAPI documentation: [OPENAPI.md](./OPENAPI.md)**
 
+### Scalar UI Documentation
+
+Norte automatically serves a beautiful interactive API documentation interface powered by [Scalar](https://github.com/scalar/scalar) at the root path (`/`).
+
+```typescript
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    version: '1.0.0'
+  }
+})
+
+// Documentation is automatically available at:
+// http://localhost:3000/
+```
+
+**Disable Scalar UI:**
+```typescript
+const app = new Norte({
+  openapi: {
+    ui: false  // Disable Scalar UI
+  }
+})
+```
+
+**Multiple OpenAPI Sources:**
+
+You can configure Scalar to display multiple OpenAPI specifications from different sources. The Norte OpenAPI spec (`/openapi.json`) is always included by default, and any additional sources you provide will be added to it:
+
+```typescript
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    sources: [
+      { 
+        url: '/auth/open-api/generate-schema', 
+        title: 'Auth API',
+      },
+      { 
+        url: 'https://api.external.com/openapi.json', 
+        title: 'External API' 
+      }
+    ]
+  }
+})
+
+// This will show in Scalar UI:
+// - /openapi.json (Norte's default spec)
+// - /auth/open-api/generate-schema (Auth API)
+// - https://api.external.com/openapi.json (External API)
+```
+
+This is perfect for integrating authentication services (like Better Auth) or displaying multiple API versions side by side.
+
+**Source Options:**
+- `url` (required): The URL to the OpenAPI document
+- `title` (optional): Display name for the API in Scalar UI
+
 ## 🖥️ CLI - Type-Safe Client Generation
 
 Norte includes a powerful CLI that generates type-safe clients from your OpenAPI specification.

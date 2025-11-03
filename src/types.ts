@@ -138,7 +138,7 @@ export type OpenAPIServerConfig = {
 
 export type OpenAPISource = {
   url: string
-  label?: string
+  title?: string
 }
 
 export type NorteOptions = {

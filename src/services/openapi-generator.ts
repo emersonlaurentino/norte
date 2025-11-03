@@ -290,4 +290,8 @@ export class OpenAPIGenerator {
         return 200
     }
   }
+
+  public getTitle(): string {
+    return this.#openapiOptions?.title ?? 'Norte API'
+  }
 }
