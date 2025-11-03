@@ -347,6 +347,43 @@ describe('Raw Routes', () => {
   })
 
   describe('Path Wildcards', () => {
+    it('should handle catch-all wildcard for multi-level paths', async () => {
+      const app = new Norte()
+
+      app.raw('*', '/auth/*', () => {
+        return ({ request }) => {
+          const url = new URL(request.url)
+          return new Response(JSON.stringify({ path: url.pathname }), {
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      })
+
+      // Single level: /auth/signin
+      const req1 = new Request('http://localhost/auth/signin', {
+        method: 'POST',
+      })
+      const res1 = await app.fetch(req1)
+      const data1 = await res1.json()
+      expect(data1.path).toBe('/auth/signin')
+
+      // Multi-level: /auth/api/signin
+      const req2 = new Request('http://localhost/auth/api/signin', {
+        method: 'POST',
+      })
+      const res2 = await app.fetch(req2)
+      const data2 = await res2.json()
+      expect(data2.path).toBe('/auth/api/signin')
+
+      // Deep nesting: /auth/api/v1/signin
+      const req3 = new Request('http://localhost/auth/api/v1/signin', {
+        method: 'GET',
+      })
+      const res3 = await app.fetch(req3)
+      const data3 = await res3.json()
+      expect(data3.path).toBe('/auth/api/v1/signin')
+    })
+
     it('should handle path wildcard with specific method', async () => {
       const app = new Norte()
 

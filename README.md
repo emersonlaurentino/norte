@@ -695,6 +695,132 @@ const protectedRouter = new Router('admin', {
 protectedRouter.list(config, handler)
 ```
 
+## 🔧 Raw Routes (Advanced)
+
+For maximum flexibility with third-party libraries (like Better Auth, Scalar, etc.), Norte provides `app.raw()` which gives you direct access to the Request/Response objects:
+
+```typescript
+import { Norte } from 'norte'
+
+const app = new Norte()
+
+// Simple raw route
+app.raw('GET', '/health', () => {
+  return () => new Response('OK', { status: 200 })
+})
+
+// Raw route with context
+app.raw('POST', '/webhook', () => {
+  return async ({ body, log }) => {
+    log.info({ event: body }, 'Webhook received')
+    return new Response(JSON.stringify({ received: true }), {
+      headers: { 'content-type': 'application/json' }
+    })
+  }
+})
+
+// Multiple methods
+app.raw(['POST', 'PUT'], '/data', () => {
+  return ({ request }) => {
+    return new Response(`Method: ${request.method}`)
+  }
+})
+
+// Wildcard method (all HTTP methods)
+app.raw('*', '/api/proxy', () => {
+  return async ({ request }) => {
+    // Proxy to external service
+    return fetch('https://external-api.com', request)
+  }
+})
+```
+
+### Catch-All Wildcard
+
+Use `/*` at the end of a path to match all sub-paths (catch-all):
+
+```typescript
+// Matches /auth/signin, /auth/api/signin, /auth/api/v1/signin, etc.
+app.raw('*', '/auth/*', () => {
+  return ({ request }) => {
+    // Handle any path under /auth/
+    return new Response(`Path: ${new URL(request.url).pathname}`)
+  }
+})
+```
+
+### Integration with Better Auth
+
+Perfect for integrating authentication libraries:
+
+```typescript
+import { Norte } from 'norte'
+import { betterAuth } from 'better-auth'
+
+const app = new Norte({
+  openapi: {
+    sources: [
+      { url: '/auth/open-api/generate-schema', label: 'Auth API' }
+    ]
+  }
+})
+
+// Register Better Auth with catch-all wildcard
+app.raw(['POST', 'GET'], '/auth/*', async (env) => {
+  const auth = betterAuth({
+    database: env.DATABASE_URL,
+    // ... your Better Auth config
+  })
+  
+  return ({ request }) => auth.handler(request)
+})
+
+// Your regular Norte routers
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.list({}, async () => [{ id: '1', name: 'Alice' }])
+
+app.register(usersRouter)
+
+export default app
+```
+
+### Context Available in Raw Routes
+
+```typescript
+type RawHandlerContext = {
+  log: NorteLogger      // Structured logger with requestId
+  body: unknown         // Parsed JSON body (if content-type is application/json)
+  param: Record<string, unknown>  // Path parameters
+  query: Record<string, unknown>  // Query parameters
+  request: Request      // Raw HTTP request
+  env: Env             // Environment variables (Cloudflare Workers) or process.env
+}
+```
+
+### Route Priority
+
+Raw routes have **higher priority** than normal routers and are matched first:
+
+```typescript
+// This raw route will match before any router
+app.raw('GET', '/v1/users', () => {
+  return () => new Response('From raw route')
+})
+
+// This router will NOT match for GET /v1/users
+const usersRouter = new Router('users', { schema: userSchema })
+app.register(usersRouter)
+```
+
+### Use Cases
+
+- **Authentication**: Better Auth, NextAuth, Auth.js
+- **Documentation**: Scalar, Swagger UI, ReDoc
+- **Webhooks**: Stripe, GitHub, custom webhooks
+- **File Uploads**: Multipart form data handling
+- **Proxies**: Forward requests to external APIs
+- **Legacy APIs**: Gradual migration from existing systems
+
 ## 🌐 Platform Support
 
 Norte's WinterCG-compatible `app.fetch` runs on:

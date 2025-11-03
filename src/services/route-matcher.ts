@@ -20,6 +20,42 @@ export class RouteMatcher {
     pathParts: string[],
     paramNames: string[],
   ): Record<string, string> | null {
+    // Check for wildcard catch-all pattern (last part is '*')
+    const hasWildcard = routeParts[routeParts.length - 1] === '*'
+
+    if (hasWildcard) {
+      // For wildcard, we need at least as many path parts as route parts (minus the wildcard)
+      const minParts = routeParts.length - 1
+      if (pathParts.length < minParts) {
+        return null
+      }
+
+      // Match only the prefix before the wildcard
+      const params: Record<string, string> = {}
+      let paramIdx = 0
+
+      for (let i = 0; i < minParts; i++) {
+        const routePart = routeParts[i]
+        const pathPart = pathParts[i]
+
+        if (!routePart || !pathPart) {
+          return null
+        }
+
+        if (routePart.charCodeAt(0) === 58) {
+          const paramName = paramNames[paramIdx++]
+          if (paramName) {
+            params[paramName] = pathPart
+          }
+        } else if (routePart !== pathPart) {
+          return null
+        }
+      }
+
+      return params
+    }
+
+    // Normal matching (exact length)
     if (routeParts.length !== pathParts.length) {
       return null
     }
