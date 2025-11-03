@@ -153,7 +153,7 @@ export class Norte {
             throw new Error('Handler not initialized')
           }
 
-          return await initializedHandler({
+          const result = initializedHandler({
             log,
             body,
             param: params,
@@ -161,6 +161,10 @@ export class Norte {
             request: req,
             env,
           })
+
+          // Garante que sempre retornamos uma Promise<Response>
+          // Isso é necessário para compatibilidade com Cloudflare Workers
+          return await Promise.resolve(result)
         } catch (err) {
           return this.#errorHandler.handle(err)
         }
