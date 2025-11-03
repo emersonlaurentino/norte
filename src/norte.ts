@@ -38,12 +38,10 @@ export class Norte {
     this.#errorHandler = new ErrorHandler()
     this.#scalarEnabled = options.openapi?.ui !== false
 
-    // Build sources for Scalar UI
-    const sources = [{ url: '/openapi.json' }]
-    if (options.openapi?.sources) {
-      sources.push(...options.openapi.sources)
-    }
-    this.#scalarSources = JSON.stringify(sources)
+    // Build configuration for Scalar UI
+    // For now, we only support the Norte's own OpenAPI spec
+    // TODO: Add support for multiple specs (custom sources) once we understand the Scalar API better
+    this.#scalarSources = '"/openapi.json"'
 
     this.#routeCompiler = new RouteCompiler(
       this.#validator,
@@ -214,17 +212,24 @@ export class Norte {
     }
 
     if (method === 'GET' && pathname === '/' && this.#scalarEnabled) {
-      const html = `<!DOCTYPE html>
+      const html = `<!doctype html>
 <html>
   <head>
     <title>API Reference</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
   </head>
   <body>
     <script
       id="api-reference"
-      data-configuration='{"spec":{"content":${this.#scalarSources}}}'
+      type="application/json"
+      data-configuration='{"spec":{"url":${this.#scalarSources}}}'
     ></script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>

@@ -18,10 +18,7 @@ export class OpenAPIGenerator {
     this.#openapiOptions = openapiOptions
   }
 
-  public addRouteMetadata(
-    definition: RouteDefinition,
-    fullPath: string,
-  ): void {
+  public addRouteMetadata(definition: RouteDefinition, fullPath: string): void {
     const metadata = this.#extractMetadata(definition, fullPath)
     this.#metadata.push(metadata)
     this.#cachedDocument = null
