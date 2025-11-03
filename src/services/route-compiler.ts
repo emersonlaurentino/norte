@@ -1,0 +1,351 @@
+import type { ValidateFunction } from 'ajv'
+import type { RouteDefinition } from '../router'
+import { NorteError, Router } from '../router'
+import type {
+  AfterHook,
+  BeforeHook,
+  CompiledRoute,
+  Env,
+  Handler,
+  HandlerContext,
+  NorteLogger,
+  NorteSchema,
+  PaginationContext,
+  Store,
+} from '../types'
+import type { ErrorHandler } from './error-handler'
+import { Logger } from './logger'
+import type { PathBuilder } from './path-builder'
+import type { RouteMatcher } from './route-matcher'
+import type { Validator } from './validator'
+
+export class RouteCompiler {
+  #validator: Validator
+  #pathBuilder: PathBuilder
+  #routeMatcher: RouteMatcher
+  #logger: Logger
+  #errorHandler: ErrorHandler
+
+  constructor(
+    validator: Validator,
+    pathBuilder: PathBuilder,
+    routeMatcher: RouteMatcher,
+    logger: Logger,
+    errorHandler: ErrorHandler,
+  ) {
+    this.#validator = validator
+    this.#pathBuilder = pathBuilder
+    this.#routeMatcher = routeMatcher
+    this.#logger = logger
+    this.#errorHandler = errorHandler
+  }
+
+  #getEnv(cloudflareEnv?: Env): Env {
+    // If Cloudflare Workers env is provided, use it
+    if (cloudflareEnv) {
+      return cloudflareEnv
+    }
+
+    // For Node.js/Bun, use process.env
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env as Env
+    }
+
+    // Fallback to empty object
+    return {} as Env
+  }
+
+  public compile(definition: RouteDefinition): CompiledRoute {
+    const { method, path, handler, options, router } = definition
+
+    const fullPath = this.#pathBuilder.buildFullPath(router, path)
+
+    const { routeParts, paramNames } = this.#routeMatcher.splitPath(fullPath)
+
+    const validators = this.#compileSchemas(options)
+
+    const routerOptions = Router.getInternals(router).options
+    const responseValidator = routerOptions.schema
+      ? this.#compileResponseSchema(method, routerOptions.schema)
+      : undefined
+
+    const beforeHooks = this.#mergeHooks(
+      routerOptions.beforeHandler,
+      options.beforeHandler,
+    )
+    const afterHooks = this.#mergeHooks(
+      routerOptions.afterHandler,
+      options.afterHandler,
+    )
+
+    const defaultStatus = this.#getDefaultStatus(method)
+
+    const execute = this.#createSuperFunction({
+      method,
+      path,
+      paramNames,
+      validators,
+      responseValidator,
+      beforeHooks,
+      handler,
+      afterHooks,
+      defaultStatus,
+    })
+
+    return {
+      pathPattern: fullPath,
+      routeParts,
+      paramNames,
+      defaultStatus,
+      execute,
+    }
+  }
+
+  #compileSchemas(options: RouteDefinition['options']): {
+    body?: ValidateFunction | undefined
+    query?: ValidateFunction | undefined
+    param?: ValidateFunction | undefined
+  } {
+    return {
+      body: options.body ? this.#validator.compile(options.body) : undefined,
+      query: options.query ? this.#validator.compile(options.query) : undefined,
+      param: options.param ? this.#validator.compile(options.param) : undefined,
+    }
+  }
+
+  #compileResponseSchema(
+    _method: string,
+    schema: NorteSchema,
+  ): ValidateFunction {
+    return this.#validator.compile(schema)
+  }
+
+  #mergeHooks<T>(routerHooks?: T[], routeHooks?: T[]): T[] {
+    return [...(routerHooks || []), ...(routeHooks || [])]
+  }
+
+  #getDefaultStatus(method: string): number {
+    switch (method.toUpperCase()) {
+      case 'POST':
+        return 201
+      case 'DELETE':
+        return 204
+      default:
+        return 200
+    }
+  }
+
+  #createSuperFunction(config: {
+    method: string
+    path: string
+    paramNames: string[]
+    validators: {
+      body?: ValidateFunction | undefined
+      query?: ValidateFunction | undefined
+      param?: ValidateFunction | undefined
+    }
+    responseValidator: ValidateFunction | undefined
+    beforeHooks: BeforeHook[]
+    handler: Handler
+    afterHooks: AfterHook[]
+    defaultStatus: number
+  }): (
+    req: Request,
+    params: Record<string, string>,
+    cloudflareEnv?: Env,
+  ) => Promise<Response> {
+    const {
+      method,
+      path,
+      validators,
+      responseValidator,
+      beforeHooks,
+      handler,
+      afterHooks,
+      defaultStatus,
+    } = config
+
+    const isListMethod = method.toUpperCase() === 'GET' && path === ''
+
+    return async (
+      req: Request,
+      params: Record<string, string>,
+      cloudflareEnv?: Env,
+    ): Promise<Response> => {
+      const log: NorteLogger = this.#logger.createLogger(req)
+      try {
+
+        const url = new URL(req.url)
+
+        const param = params
+
+        const query: Record<string, string> = {}
+        for (const [key, value] of url.searchParams.entries()) {
+          query[key] = value
+        }
+
+        let bodyData: unknown
+        const contentType = req.headers.get('content-type')
+        if (contentType?.includes('application/json')) {
+          try {
+            bodyData = await req.json()
+          } catch {
+            throw new NorteError('INVALID_INPUT', 'Invalid JSON body')
+          }
+        }
+
+        let store = {} as Store
+
+        const error = (code: string, msg: string) => new NorteError(code, msg)
+
+        const env = this.#getEnv(cloudflareEnv)
+
+        for (const hook of beforeHooks) {
+          store = await hook({
+            request: req,
+            headers: req.headers,
+            param,
+            query,
+            store,
+            log,
+            error,
+            env,
+          })
+        }
+
+        if (validators.body && bodyData !== undefined) {
+          if (!validators.body(bodyData)) {
+            throw new NorteError(
+              'INVALID_INPUT',
+              `Body validation failed: ${this.#validator.getErrorText(validators.body)}`,
+            )
+          }
+        }
+
+        if (validators.query) {
+          if (!validators.query(query)) {
+            throw new NorteError(
+              'INVALID_INPUT',
+              `Query validation failed: ${this.#validator.getErrorText(validators.query)}`,
+            )
+          }
+        }
+
+        if (validators.param) {
+          if (!validators.param(param)) {
+            throw new NorteError(
+              'INVALID_INPUT',
+              `Param validation failed: ${this.#validator.getErrorText(validators.param)}`,
+            )
+          }
+        }
+
+        let handlerContext: HandlerContext = {
+          body: bodyData,
+          param,
+          query,
+          store,
+          log,
+          request: req,
+          env,
+        }
+
+        if (isListMethod) {
+          const queryRecord = query as Record<string, unknown>
+          const page = Number(queryRecord.page) || 1
+          const limit = Number(queryRecord.limit) || 10
+          const offset = (page - 1) * limit
+
+          const pagination: PaginationContext = {
+            page,
+            limit,
+            offset,
+          }
+
+          handlerContext = {
+            ...handlerContext,
+            pagination,
+          } as HandlerContext & { pagination: PaginationContext }
+        }
+
+        const result = await handler(handlerContext)
+
+        if (!(result instanceof Response)) {
+          if (responseValidator) {
+            if (isListMethod) {
+              if (!Array.isArray(result)) {
+                throw new NorteError(
+                  'INVALID_OUTPUT',
+                  'List method must return an array',
+                )
+              }
+              for (let i = 0; i < result.length; i++) {
+                const item = result[i]
+                if (!responseValidator(item)) {
+                  throw new NorteError(
+                    'INVALID_OUTPUT',
+                    `Response validation failed for item ${i}: ${this.#validator.getErrorText(responseValidator)}`,
+                  )
+                }
+              }
+            } else {
+              if (!responseValidator(result)) {
+                throw new NorteError(
+                  'INVALID_OUTPUT',
+                  `Response validation failed: ${this.#validator.getErrorText(responseValidator)}`,
+                )
+              }
+            }
+          }
+        }
+
+        const responseHeaders = new Headers()
+        const responseState = { status: defaultStatus }
+        const requestId = Logger.getRequestId(log, req)
+
+        if (requestId) {
+          responseHeaders.set('X-Request-ID', requestId)
+        }
+
+        for (const hook of afterHooks) {
+          await hook({
+            result,
+            response: responseState,
+            headers: responseHeaders,
+            store,
+            log,
+            env,
+          })
+        }
+
+        if (result instanceof Response) {
+          const customHeaders = new Headers(result.headers)
+          if (requestId && !customHeaders.has('X-Request-ID')) {
+            customHeaders.set('X-Request-ID', requestId)
+          }
+          return new Response(result.body, {
+            status: result.status,
+            statusText: result.statusText,
+            headers: customHeaders,
+          })
+        }
+
+        if (defaultStatus === 204) {
+          return new Response(null, {
+            status: responseState.status || 204,
+            headers: responseHeaders,
+          })
+        }
+
+        responseHeaders.set('content-type', 'application/json')
+        return new Response(JSON.stringify(result), {
+          status: responseState.status || defaultStatus,
+          headers: responseHeaders,
+        })
+      } catch (err) {
+        const requestId = Logger.getRequestId(log, req)
+        return this.#errorHandler.handle(err, requestId)
+      }
+    }
+  }
+}

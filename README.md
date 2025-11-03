@@ -1,101 +1,123 @@
 # Norte
 
-A modern, type-safe API framework that simplifies building production-ready REST APIs with built-in authentication, automatic OpenAPI documentation, and CRUD operations.
+A zero-dependency, opinionated API framework that follows the principles of business logic separation and static compilation for maximum performance.
 
-## ✨ Features
+## ✨ Philosophy
 
-- 🚀 **Fast Development** - Build APIs with minimal boilerplate
-- 🔐 **Authentication Ready** - Built-in session management with Better Auth
-- 📚 **Auto Documentation** - Automatic OpenAPI/Swagger generation with Scalar UI
-- 🛡️ **Type Safety** - Full TypeScript support with Zod validation
-- 🔧 **CRUD Made Easy** - Chainable methods for common operations
-- ⚡ **High Performance** - Built on top of Hono for maximum speed
-- 🎯 **Opinionated** - Sensible defaults that just work
-- 🔄 **Error Handling** - Built-in NorteError system with proper HTTP status codes
+Norte is not an HTTP framework; it's a **business logic framework** that uses HTTP as an implementation detail. Our opinionated approach focuses on eliminating boilerplate so developers can concentrate only on what adds value.
 
-## 🚀 Quick Start
+## 🚀 Core Principles
 
-### Installation
+- **Opinionated Simplicity**: One correct way to do things, ensuring consistency and zero ambiguity
+- **Performance by Static Compilation**: Moves maximum work (validation, routing) from runtime to initialization
+- **Total Protocol Abstraction**: Pure separation - Hooks handle Protocol (HTTP), Handlers handle Business Logic (pure data)
+- **Universal Portability**: Core agnostic (`app.fetch`) runs on any platform (Bun, Node.js, Cloudflare Workers, Vercel)
+- **Zero Dependencies**: Minimal external dependencies with TypeBox + AJV for validation
+
+## 📦 Installation
 
 ```bash
-bun add norte better-auth
+bun add norte
 # or
-npm install norte better-auth
+npm install norte
 # or
-yarn add norte better-auth
+yarn add norte
 # or
-pnpm add norte better-auth
+pnpm add norte
 ```
 
-### Basic Usage
+## 🎯 Quick Start
 
 ```typescript
-import { Norte, Router, z, NorteError } from 'norte'
+import { Norte, Router, t, NorteError } from 'norte'
 
-// 1. Create your main app
+// 1. Create your main app with observability
 const app = new Norte({
-  title: 'My API',
-  version: '1.0.0',
-  authConfig: {
-    // Your Better Auth configuration
-    database: db,
-    emailAndPassword: { enabled: true },
+  logger: {
+    level: 'info',
+    name: 'my-api'
+  },
+  telemetry: {
+    enabled: true,
+    serviceName: 'my-api'
   }
 })
 
-// 2. Define your response schema
-const selectSchema = z.object({
-  id: z.string().cuid2(),
-  name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(18),
-  createdAt: z.date()
+// 2. Define schemas with TypeBox
+const userSchema = t.Object({
+  id: t.String(),
+  name: t.String(),
+  email: t.Email(),
+  age: t.Number({ minimum: 18 }),
+  createdAt: t.Date()
 })
 
-const insertSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(18)
+const createUserSchema = t.Object({
+  name: t.String(),
+  email: t.Email(),
+  age: t.Number({ minimum: 18 })
 })
 
-// 3. Create a router with CRUD operations using domain-driven approach
-const userRouter = new Router('users', { schema: selectSchema })
-  .list(async () => {
-    return await getUsersFromDB()
-  })
-  .create({ input: insertSchema }, async ({ input }) => {
-    return await createUser(input)
-  })
-  .read(async ({ param }) => {
-    const foundUser = await getUserById(param.userId)
-    if (!foundUser) {
-      return new NorteError('NOT_FOUND', 'User not found')
-    }
-    return foundUser
-  })
-  .update(
-    { input: insertSchema.partial() },
-    async ({ input, param }) => {
-      const updatedUser = await updateUser(param.userId, input)
-      if (!updatedUser) {
-        return new NorteError('NOT_FOUND', 'User not found')
-      }
-      return updatedUser
+// 3. Create a router with domain-driven approach
+const userRouter = new Router('users', { version: 1 })
+  .list(
+    { 
+      response: t.Array(userSchema),
+      query: t.Object({
+        limit: t.Optional(t.Number({ minimum: 1, maximum: 100 }))
+      })
+    },
+    async ({ query, log }) => {
+      log.info('Fetching users', { limit: query.limit })
+      return await getUsersFromDB(query.limit || 20)
     }
   )
-  .delete(async ({ param }) => {
-    const deleted = await deleteUser(param.userId)
-    if (!deleted) {
-      return new NorteError('NOT_FOUND', 'User not found')
+  .create(
+    { 
+      body: createUserSchema,
+      response: userSchema
+    },
+    async ({ body, log }) => {
+      log.info('Creating user', { email: body.email })
+      return await createUser(body)
     }
-  })
+  )
+  .read(
+    { 
+      response: userSchema,
+      param: t.Object({ userId: t.String() })
+    },
+    async ({ param, log }) => {
+      const user = await getUserById(param.userId)
+      if (!user) {
+        throw new NorteError('NOT_FOUND', 'User not found')
+      }
+      return user
+    }
+  )
 
 // 4. Register the router
 app.register(userRouter)
 
-// 5. Export for your runtime
+// 5. Export for your runtime (WinterCG compatible)
 export default app
 ```
+
+## 🏗️ Architecture: 3-Phase Compilation
+
+Norte operates as a "compiler" in three phases:
+
+### Phase 1: Definition (Runtime)
+Stores route definitions (`new Router(...)`) and schemas.
+
+### Phase 2: Compilation (Initialization)
+- Pre-compiles schemas (via AJV)
+- "Flattens" the before → handle → after chain into optimized functions
+- Builds routing tree
+- Generates "intelligent" OpenAPI
+
+### Phase 3: Execution (Runtime)
+Exposes a single `app.fetch` handler (WinterCG) that executes optimized functions with near-zero overhead.
 
 ## 📋 API Reference
 
@@ -107,15 +129,13 @@ The main application class that handles setup and configuration.
 const app = new Norte({
   title: string,              // API title for documentation
   version?: string,           // API version (default: "1.0.0")
-  authConfig: BetterAuthOptions  // Better Auth configuration
 })
 ```
 
 #### Methods
 
-- `app.middleware(...middlewares)` - Add Hono middleware
 - `app.register(router)` - Register a Router instance
-- `app.fetch` - The fetch handler for your runtime (with proxy support)
+- `app.fetch` - The WinterCG-compatible fetch handler
 
 ### Router Class
 
@@ -124,12 +144,12 @@ Domain-driven API for creating CRUD operations with automatic OpenAPI documentat
 ```typescript
 // Root domain
 const router = new Router(domain: string, config: {
-  schema: ZodSchema    // Response data schema
+  version?: number
 })
 
 // Nested domain
 const router = new Router(parent: Router, domain: string, config: {
-  schema: ZodSchema
+  version?: number
 })
 ```
 
@@ -138,252 +158,363 @@ const router = new Router(parent: Router, domain: string, config: {
 Norte uses domain names to automatically generate paths, parameters, and OpenAPI tags:
 
 ```typescript
-// Domain: 'stores' -> generates /stores, parameter 'storeId', and OpenAPI tag 'Stores'
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
+// Domain: 'stores' -> generates /v1/stores, parameter 'storeId', and OpenAPI tag 'Stores'
+const storeRouter = new Router('stores', { version: 1 })
 
-// Domain: 'products' nested under stores -> generates /stores/:storeId/products and tag 'Products'
-const productsRouter = new Router(storeRouter, 'products', {
-  schema: productSchema
-})
-
-// Domain: 'variants' nested under products -> generates /stores/:storeId/products/:productId/variants and tag 'Variants'
-const variantsRouter = new Router(productsRouter, 'variants', {
-  schema: variantSchema
-})
-```
-
-#### Auto-Generated Routes
-
-Each domain automatically generates RESTful routes and OpenAPI tags:
-
-| Domain | Generated Routes | OpenAPI Tag |
-|--------|------------------|-------------|
-| `stores` | `GET /stores`, `POST /stores`, `GET /stores/:id`, `PUT /stores/:id`, `DELETE /stores/:id` | `Stores` |
-| `products` (nested) | `GET /stores/:storeId/products`, `POST /stores/:storeId/products`, etc. | `Products` |
-| `variants` (nested) | `GET /stores/:storeId/products/:productId/variants`, etc. | `Variants` |
-
-#### Parameter Auto-Generation
-
-Parameters and OpenAPI tags are automatically generated from domain names:
-
-```typescript
-// Domain transformations:
-'stores' -> 'storeId' (parameter) + 'Stores' (OpenAPI tag)
-'products' -> 'productId' (parameter) + 'Products' (OpenAPI tag)
-'categories' -> 'categoryId' (parameter) + 'Categories' (OpenAPI tag)
-'variants' -> 'variantId' (parameter) + 'Variants' (OpenAPI tag)
-
-// Handlers automatically receive all parent parameters + current domain parameter
-variantsRouter.read(async ({ param }) => {
-  // param contains: { storeId, productId, variantId }
-  const variant = await getVariant(param.variantId, param.productId, param.storeId)
-  return variant
-})
+// Domain: 'products' nested under stores -> generates /v1/stores/:storeId/products and tag 'Products'
+const productsRouter = new Router(storeRouter, 'products', { version: 1 })
 ```
 
 #### CRUD Methods
 
-Each method is chainable and generates the appropriate OpenAPI route:
+Each method requires schemas for input and output validation:
 
 **List Resources**
 ```typescript
-// Simple usage
-.list(handler: ListHandler)
-
-// With configuration
-.list(config: RouteCommonConfig, handler: ListHandler)
+.list(
+  config: RouteConfig<never, TResponse, TParams>,
+  handler: ListHandler<TResponse, TParams>
+)
 ```
 
 **Create Resource**
 ```typescript
 .create(
-  config: RouteCommonConfig & { input: ZodSchema },
-  handler: InsertHandler
+  config: RouteConfig<TInput, TResponse, TParams>,
+  handler: CreateHandler<TInput, TResponse, TParams>
 )
 ```
 
 **Read Resource**
 ```typescript
-// Simple usage
-.read(handler: ReadHandler)
-
-// With configuration
-.read(config: RouteCommonConfig, handler: ReadHandler)
+.read(
+  config: RouteConfig<never, TResponse, TParams>,
+  handler: ReadHandler<TResponse, TParams>
+)
 ```
 
 **Update Resource**
 ```typescript
 .update(
-  config: RouteCommonConfig & { input: ZodSchema },
-  handler: UpdateHandler
+  config: RouteConfig<TInput, TResponse, TParams>,
+  handler: UpdateHandler<TInput, TResponse, TParams>
 )
 ```
 
 **Delete Resource**
 ```typescript
-// Simple usage
-.delete(handler: DeleteHandler)
-
-// With configuration
-.delete(config: RouteCommonConfig, handler: DeleteHandler)
+.delete(
+  config: RouteConfig<never, never, TParams>,
+  handler: DeleteHandler<TParams>
+)
 ```
 
-#### Handler Types
-
+**Custom Route**
 ```typescript
-type HandlerResult<T> = Promise<T | NorteError> | T | NorteError
-
-type HandlerContext<
-  TParams extends Record<string, string> = Record<string, never>,
-> = {
-  session: Session | null
-  user: User | null
-  param: TParams
-  request: NorteRequest
-}
-
-type ListHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>[]>
-
-type InsertHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
-
-type ReadHandler<
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (c: HandlerContext<TParams>) => HandlerResult<z.infer<TResponse>>
-
-type UpdateHandler<
-  TInput extends ZodSchema,
-  TResponse extends ZodSchema,
-  TParams extends Record<string, string>,
-> = (
-  c: HandlerContext<TParams> & { input: z.infer<TInput> },
-) => HandlerResult<z.infer<TResponse>>
-
-type DeleteHandler<TParams extends Record<string, string>> = (
-  c: HandlerContext<TParams>,
-) => HandlerResult<undefined>
+.custom(
+  method: string,
+  path: string,
+  config: CustomRouteConfig<TParams>,
+  handler: CustomHandler<TParams>
+)
 ```
 
-#### Configuration Options
+### Handler Context
+
+Handlers receive only validated data and business context:
 
 ```typescript
-interface RouteCommonConfig {
-  isPublic?: boolean  // Skip authentication (default: false)
+type HandlerContext<TParams = Record<string, string>> = {
+  param: TParams           // Validated path parameters
+  body?: unknown          // Validated request body
+  query?: Record<string, string>  // Validated query parameters
+  store: Store           // Shared state between hooks and handlers
+  log: Logger            // Structured logging with request ID
 }
 ```
 
-## 🏗️ Nested Domains
+### Hook Context
 
-Create nested resource hierarchies using domain-driven design:
-
-### Basic Nested Domains
+Hooks handle HTTP protocol concerns:
 
 ```typescript
-import { Router, z, NorteError } from 'norte'
-
-// Root domain
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
-  .list(async ({ user }) => {
-    const stores = await getStoresByUser(user.id)
-    return stores
-  })
-
-// Nested domain - parent as first argument
-const productsRouter = new Router(storeRouter, 'products', {
-  schema: productSchema
-})
-  .list(async ({ param }) => {
-    // param.storeId is automatically available from parent domain
-    const products = await getProductsByStore(param.storeId)
-    return products
-  })
-  .read(async ({ param }) => {
-    // param contains both storeId and productId
-    const product = await getProductById(param.productId, param.storeId)
-    return product || new NorteError('NOT_FOUND', 'Product not found')
-  })
-
-// Register both routers
-app.register(storeRouter)
-app.register(productsRouter)
+type HookContext = {
+  request: Request        // Raw HTTP request
+  response?: Response     // HTTP response (in afterHandle)
+  headers: Headers        // Request headers
+  store: Store           // Shared state
+  log: Logger            // Structured logging
+  error: (code: string, message: string, details?: unknown) => NorteError
+}
 ```
 
-### Deep Domain Nesting
+## 🔧 TypeBox Validation
+
+Norte uses TypeBox for schema definition with AJV for compilation:
 
 ```typescript
-// Four-level domain hierarchy
-const storeRouter = new Router('stores', { 
-  schema: storeSchema 
+import { t } from 'norte'
+
+// Primitives
+const schema = t.Object({
+  id: t.String(),
+  count: t.Number({ minimum: 0 }),
+  active: t.Boolean(),
+  tags: t.Array(t.String()),
+  metadata: t.Optional(t.Object({
+    created: t.Date(),
+    updated: t.Date()
+  }))
 })
 
-const productsRouter = new Router(storeRouter, 'products', { 
-  schema: productSchema 
+// Common patterns
+const userSchema = t.Object({
+  id: t.String(),
+  email: t.Email(),
+  uuid: t.Uuid(),
+  createdAt: t.Date()
 })
-
-const variantsRouter = new Router(productsRouter, 'variants', { 
-  schema: variantSchema 
-})
-
-const optionsRouter = new Router(variantsRouter, 'options', { 
-  schema: optionSchema 
-})
-
-// Final routes: /stores/:storeId/products/:productId/variants/:variantId/options
-// Handler receives: { storeId, productId, variantId, id }
 ```
 
+## 🔢 Native Versioning
 
-
-### Domain Constructor Patterns
+Norte includes native API versioning that automatically prefixes all routes:
 
 ```typescript
-// Root domain
-new Router(domain: string, config: RouterConfig)
+// Version 1 (default) - version é OPCIONAL
+const usersV1 = new Router('users', { 
+  schema: t.Object({
+    id: t.String(),
+    name: t.String()
+  })
+  // version: 1 <- OPCIONAL! Se omitido, usa version 1
+})
+usersV1.list({}, async () => [{ id: '1', name: 'Alice' }])
+// Generates: GET /v1/users
 
-// Nested domain  
-new Router(parent: Router, domain: string, config: RouterConfig)
+// Version 2 with additional fields
+const usersV2 = new Router('users', { 
+  schema: t.Object({
+    id: t.String(),
+    name: t.String(),
+    email: t.String(),
+    createdAt: t.String()
+  }),
+  version: 2
+})
+usersV2.list({}, async () => [
+  { id: '1', name: 'Alice', email: 'alice@example.com', createdAt: '2025-01-01' }
+])
+// Generates: GET /v2/users
+
+// Register both versions
+app.register(usersV1)
+app.register(usersV2)
 ```
 
-**Note**: The `name` attribute is no longer needed in the config. OpenAPI tags and route names are automatically generated from the domain name (e.g., `'stores'` becomes `'Stores'`).
+### Version Features
 
-### Parameter Inheritance
+- **Optional Field**: `version` is optional - defaults to `1` when not specified
+- **Automatic Prefixing**: All routes get `/v{number}/` prefix
+- **Multiple Versions**: Support multiple versions of the same domain simultaneously
+- **Nested Routers**: Child routers inherit parent's version
+- **Consistent**: Version is applied to all CRUD operations (.list, .create, .read, .update, .delete, .custom)
 
-Nested routers automatically inherit all parameters from their parent chain:
+### Common Usage
+
+Most APIs start without specifying version (defaults to v1):
 
 ```typescript
-// For nested domain: pharmacies -> categories -> products -> variants
-interface NestedParams {
-  pharmacyId: string    // From parent 'pharmacies' domain
-  categoryId: string    // From parent 'categories' domain  
-  productId: string     // From parent 'products' domain
-  variantId: string     // From current 'variants' domain
+// Simple API - version defaults to 1
+const users = new Router('users', { schema: userSchema })
+const products = new Router('products', { schema: productSchema })
+
+// These generate: /v1/users and /v1/products
+app.register(users)
+app.register(products)
+```
+
+### Version Strategy
+
+```typescript
+// Gradual migration strategy
+const productsV1 = new Router('products', { schema: schemaV1, version: 1 })
+const productsV2 = new Router('products', { schema: schemaV2, version: 2 })
+const productsV3 = new Router('products', { schema: schemaV3, version: 3 })
+
+// All versions coexist
+app.register(productsV1)  // /v1/products
+app.register(productsV2)  // /v2/products
+app.register(productsV3)  // /v3/products
+```
+
+## 🎣 Lifecycle Hooks
+
+### Before Handle Hooks
+
+Execute before the handler, handle protocol concerns:
+
+```typescript
+const authHook: BeforeHook = async ({ request, headers, store, error }) => {
+  const token = headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) {
+    throw error('UNAUTHORIZED', 'Missing authorization token')
+  }
+  
+  // Validate token and set user in store
+  const user = await validateToken(token)
+  return { ...store, user }
 }
 
-// All parameters are automatically validated as CUID2 strings
-const paramSchema = z.object({
-  pharmacyId: z.string().cuid2(),
-  categoryId: z.string().cuid2(),
-  productId: z.string().cuid2(),
-  variantId: z.string().cuid2()
+const userRouter = new Router('users', {
+  schema: userSchema,
+  version: 1,
+  beforeHandler: [authHook]
 })
+
+userRouter.read(config, handler)
+```
+
+### After Handle Hooks
+
+Execute after the handler, handle response concerns:
+
+```typescript
+const loggingHook: AfterHook = async ({ result, log }) => {
+  log.info('Request completed', {
+    status: result instanceof NorteError ? 'error' : 'success'
+  })
+}
+
+const userRouter = new Router('users', {
+  schema: userSchema,
+  afterHandler: [loggingHook]
+})
+```
+
+## 📊 Observability & Logging
+
+Norte includes built-in structured logging with Pino and optional OpenTelemetry integration.
+
+### Structured Logging
+
+Every request automatically gets a unique `requestId` that is injected into all logs:
+
+```typescript
+const app = new Norte({
+  logger: {
+    level: 'info',
+    name: 'my-api'
+  }
+})
+
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.list({}, async ({ log }) => {
+  // Logger has requestId automatically
+  log.info({ action: 'list-users' }, 'Fetching users')
+  // Output: {"requestId":"abc-123","action":"list-users","msg":"Fetching users"}
+  
+  const users = await db.users.findMany()
+  return users
+})
+```
+
+### Logger Features
+
+- **Automatic requestId**: Generated for each request or extracted from `X-Request-ID` header
+- **Child Loggers**: Create contextual loggers with additional bindings
+- **Pino-based**: High-performance JSON logging
+- **Pretty Print**: Automatic in development mode
+
+```typescript
+// Child logger with additional context
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.read({}, async ({ param, log }) => {
+  const childLog = log.child({ userId: param.userId })
+  childLog.info({ action: 'fetch' }, 'Fetching user details')
+  
+  const user = await db.users.findUnique({ id: param.userId })
+  childLog.info({ found: !!user }, 'User fetch completed')
+  
+  return user
+})
+```
+
+### Custom Logger Configuration
+
+```typescript
+// Custom log level and name
+const app = new Norte({
+  logger: {
+    level: 'debug',
+    name: 'my-service',
+    // Any Pino options
+    redact: ['password', 'token']
+  }
+})
+
+// Disable logging
+const app = new Norte({
+  logger: false
+})
+```
+
+### OpenTelemetry Integration
+
+Enable distributed tracing with OpenTelemetry-compatible systems:
+
+```typescript
+const app = new Norte({
+  telemetry: {
+    enabled: true,
+    serviceName: 'api-gateway'
+  }
+})
+```
+
+**When telemetry is enabled:**
+
+- Logs include `trace_id` automatically
+- Extracts trace context from `traceparent` header (W3C Trace Context)
+- Generates new trace IDs for incoming requests without parent
+- All logs are correlated with traces
+
+```typescript
+// With telemetry enabled, logs include trace_id:
+// {"requestId":"abc-123","trace_id":"0af7651916cd43dd8448eb211c80319c","msg":"..."}
+```
+
+**Trace Context Propagation:**
+
+```bash
+# Client sends traceparent header
+curl -H "traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" \
+  https://api.example.com/v1/users
+```
+
+The `trace_id` is automatically extracted and included in all logs for that request, enabling full distributed tracing across services.
+
+### Logger in Hooks
+
+The logger is available in all hooks with the same requestId:
+
+```typescript
+const authHook = async ({ log, headers, error }) => {
+  log.debug({ hasAuth: !!headers.get('authorization') }, 'Checking auth')
+  
+  const token = headers.get('authorization')
+  if (!token) {
+    log.warn('Missing authorization header')
+    throw error('UNAUTHORIZED', 'Missing token')
+  }
+  
+  return { user: await validateToken(token) }
+}
 ```
 
 ## 🚨 Error Handling
 
-Norte includes a comprehensive error system with the `NorteError` class:
+Norte includes a comprehensive error system:
 
 ```typescript
 import { NorteError } from 'norte'
@@ -398,239 +529,416 @@ type ErrorCode =
   | 'INTERNAL_SERVER_ERROR' // 500
 
 // Usage in handlers
-router.read(async ({ param }) => {
+router.read(config, async ({ param }) => {
   const user = await getUserById(param.userId)
   if (!user) {
-    return new NorteError('NOT_FOUND', 'User not found', { userId: param.userId })
+    throw new NorteError('NOT_FOUND', 'User not found', { userId: param.userId })
   }
   return user
 })
 ```
 
-## 🔐 Authentication
+## 📚 OpenAPI Documentation
 
-Norte includes built-in authentication powered by Better Auth:
-
-### Protected Routes (Default)
+Norte automatically generates "intelligent" OpenAPI 3.0 specifications with cache invalidation hints:
 
 ```typescript
-// This route requires authentication
-router.list(async ({ session, user }) => {
-  // session and user are available and not null
-  const users = await getUsersForTenant(user.id)
-  return users
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    version: '1.0.0',
+    description: 'My API description',
+    servers: [
+      { url: 'http://localhost:3000', description: 'Development' },
+      { url: 'https://api.example.com', description: 'Production' }
+    ]
+  }
 })
+
+// OpenAPI is automatically available at:
+// GET http://localhost:3000/openapi.json
 ```
 
-### Public Routes
+### Smart Cache Invalidation
+
+Norte adds intelligent hints to the OpenAPI spec for automatic cache invalidation:
 
 ```typescript
-// This route is publicly accessible
-router.list({ isPublic: true }, async ({ session, user }) => {
-  // session and user might be null
-  const publicUsers = await getPublicUsers()
-  return publicUsers
-})
-```
-
-### Authentication Endpoints
-
-Norte automatically sets up authentication endpoints at `/auth/**`:
-
-- `POST /auth/sign-in` - Sign in
-- `POST /auth/sign-up` - Sign up  
-- `POST /auth/sign-out` - Sign out
-- `GET /auth/session` - Get current session
-- And more from Better Auth...
-
-## 📚 Documentation
-
-Norte automatically generates interactive API documentation using Scalar:
-
-- **Main docs**: Visit `/` for multi-source Scalar documentation
-- **API docs**: Available at `/docs` (OpenAPI 3.1)
-- **Auth docs**: Authentication endpoints at `/auth/open-api/generate-schema`
-- **Health check**: Available at `/healthcheck`
-
-The documentation includes:
-- Automatic schema generation from Zod schemas
-- Request/response examples
-- Authentication requirements
-- Error response formats
-
-## 🛠️ Advanced Usage
-
-### Custom Middleware
-
-Norte comes with `logger` and `prettyJSON` middlewares configured by default. You can add any additional Hono middleware through the `middleware()` method:
-
-```typescript
-import { cors } from 'hono/cors'
-import { compress } from 'hono/compress'
-
-// Add CORS middleware
-app.middleware(cors({
-  origin: ['https://yourdomain.com'],
-  credentials: true
-}))
-
-// Add compression middleware
-app.middleware(compress())
-
-// Custom middleware
-app.middleware(async (c, next) => {
-  console.log('Custom middleware executed')
-  await next()
-})
-```
-
-### Parameter Validation
-
-All ID parameters are automatically validated as CUID2 strings:
-
-```typescript
-// Automatically validates param.userId as z.cuid2()
-userRouter.read(async ({ param }) => {
-  const { userId } = param // userId is guaranteed to be a valid CUID2
-  // ...
-})
-```
-
-### Response Format
-
-All successful responses follow a consistent format:
-
-```typescript
-// List responses
-{ "data": [...] }
-
-// Single resource responses  
-{ "data": {...} }
-
-// Error responses
-{ 
-  "error": "ERROR_CODE",
-  "message": "Human readable message",
-  "details": {...} // Optional additional details
+// POST /v1/users includes:
+{
+  "x-norte-invalidates": ["GET /v1/users"],  // Invalidate user list
+  "x-norte-domain": "users",
+  "x-norte-version": 1
 }
 ```
 
-## 🎯 Examples
+These hints are used by the Norte CLI to generate type-safe clients with automatic cache invalidation.
 
-### Database Integration (Drizzle) with Domains
+**📖 Full OpenAPI documentation: [OPENAPI.md](./OPENAPI.md)**
+
+### Scalar UI Documentation
+
+Norte automatically serves a beautiful interactive API documentation interface powered by [Scalar](https://github.com/scalar/scalar) at the root path (`/`).
 
 ```typescript
-import { eq } from 'drizzle-orm'
-import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-
-const userResponseSchema = createSelectSchema(userTable)
-const insertSchema = createInsertSchema(userTable).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    version: '1.0.0'
+  }
 })
 
-// Domain-driven router instead of path-based
-const userRouter = new Router('users', {
-  schema: userResponseSchema
-})
-  .list(async ({ user }) => {
-    const users = await db.select().from(userTable).where(eq(userTable.tenantId, user.tenantId))
-    return users
-  })
-  .create(
-    { input: insertSchema },
-    async ({ input, user }) => {
-      const [newUser] = await db
-        .insert(userTable)
-        .values({ ...input, tenantId: user.tenantId })
-        .returning()
-      return newUser
-    }
-  )
-  .read(async ({ param }) => {
-    const [user] = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, param.userId))
-    
-    if (!user) {
-      return new NorteError('NOT_FOUND', 'User not found')
-    }
-    
-    return user
-  })
+// Documentation is automatically available at:
+// http://localhost:3000/
 ```
+
+**Disable Scalar UI:**
+```typescript
+const app = new Norte({
+  openapi: {
+    ui: false  // Disable Scalar UI
+  }
+})
+```
+
+**Multiple OpenAPI Sources:**
+
+You can configure Scalar to display multiple OpenAPI specifications from different sources. The Norte OpenAPI spec (`/openapi.json`) is always included by default, and any additional sources you provide will be added to it:
+
+```typescript
+const app = new Norte({
+  openapi: {
+    title: 'My API',
+    sources: [
+      { 
+        url: '/auth/open-api/generate-schema', 
+        title: 'Auth API',
+      },
+      { 
+        url: 'https://api.external.com/openapi.json', 
+        title: 'External API' 
+      }
+    ]
+  }
+})
+
+// This will show in Scalar UI:
+// - /openapi.json (Norte's default spec)
+// - /auth/open-api/generate-schema (Auth API)
+// - https://api.external.com/openapi.json (External API)
+```
+
+This is perfect for integrating authentication services (like Better Auth) or displaying multiple API versions side by side.
+
+**Source Options:**
+- `url` (required): The URL to the OpenAPI document
+- `title` (optional): Display name for the API in Scalar UI
+
+## 🖥️ CLI - Type-Safe Client Generation
+
+Norte includes a powerful CLI that generates type-safe clients from your OpenAPI specification.
+
+### Generate Client
+
+```bash
+# Generate TanStack Query hooks with auto cache invalidation
+norte generate
+
+# Generate from file
+norte generate --input ./openapi.json --output ./src/api
+
+# Generate plain fetch client
+norte generate --adapter fetch
+```
+
+### TanStack Query Example
+
+```typescript
+import { useUserList, useUserCreate } from './api'
+
+function UserList() {
+  // Query hook with auto-refresh
+  const { data: users, isLoading } = useUserList({ limit: 10 })
+  
+  // Mutation hook with auto cache invalidation
+  const createUser = useUserCreate()
+  
+  const handleCreate = async () => {
+    await createUser.mutateAsync({
+      name: 'Alice',
+      email: 'alice@example.com'
+    })
+    // useUserList cache is automatically invalidated!
+  }
+  
+  return (
+    <div>
+      {users?.map(user => <div key={user.id}>{user.name}</div>)}
+      <button onClick={handleCreate}>Create User</button>
+    </div>
+  )
+}
+```
+
+**Features:**
+
+- **Fully Type-Safe**: All inputs and outputs are typed from your schemas
+- **Auto Cache Invalidation**: Uses `x-norte-invalidates` hints for smart cache management
+- **Query Key Factory**: Includes generated query keys for manual cache control
+- **Multiple Adapters**: Choose between `fetch` (plain) or `tanstack-query` (React)
+
+**📖 Full CLI documentation: [CLI.md](./CLI.md)**
+
+## 🎯 Examples
 
 ### Multi-Tenant Store Example
 
 ```typescript
 // Store domain for multi-tenant architecture
-const storeRouter = new Router('stores', {
-  schema: storeSchema
-})
-  .list(async ({ user }) => {
-    // Get stores for current tenant
-    const stores = await db
-      .select()
-      .from(storeTable)
-      .where(eq(storeTable.tenantId, user.tenantId))
-    return stores
-  })
+const storeRouter = new Router('stores', { version: 1 })
+  .list(
+    { response: t.Array(storeSchema) },
+    async ({ store, log }) => {
+      const stores = await db.stores.findMany({
+        where: { tenantId: store.user.tenantId }
+      })
+      return stores
+    }
+  )
 
-// Orders nested under stores - generates /stores/:storeId/orders
-const ordersRouter = new Router(storeRouter, 'orders', {
-  schema: orderSchema
-})
-  .list(async ({ param, user }) => {
-    // param.storeId automatically available with validation
-    const orders = await db
-      .select()
-      .from(orderTable)
-      .where(
-        and(
-          eq(orderTable.storeId, param.storeId),
-          eq(orderTable.tenantId, user.tenantId) // Multi-tenant security
-        )
-      )
-    return orders
-  })
-
-// Items nested under orders - generates /stores/:storeId/orders/:orderId/items
-const orderItemsRouter = new Router(ordersRouter, 'items', {
-  schema: orderItemSchema
-})
-  .list(async ({ param }) => {
-    // param contains: { storeId, orderId }
-    const items = await db
-      .select()
-      .from(orderItemTable)
-      .where(eq(orderItemTable.orderId, param.orderId))
-    return items
-  })
-```
-
-### Validation with Custom Error Messages
-
-```typescript
-const createPostSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title too long'),
-  content: z.string().min(10, 'Content must be at least 10 characters'),
-  published: z.boolean().default(false)
-})
-
-const postRouter = new Router('posts', {
-  schema: postResponseSchema
-})
-  .create(
-    { input: createPostSchema },
-    async ({ input, user }) => {
-      // Input is automatically validated against createPostSchema
-      const post = await createPost({ ...input, authorId: user.id })
-      return post
+// Orders nested under stores - generates /v1/stores/:storeId/orders
+const ordersRouter = new Router(storeRouter, 'orders', { version: 1 })
+  .list(
+    { 
+      response: t.Array(orderSchema),
+      param: t.Object({ storeId: t.String() })
+    },
+    async ({ param, store }) => {
+      const orders = await db.orders.findMany({
+        where: {
+          storeId: param.storeId,
+          tenantId: store.user.tenantId // Multi-tenant security
+        }
+      })
+      return orders
     }
   )
 ```
+
+### Authentication Hook
+
+```typescript
+const authHook: BeforeHook = async ({ request, headers, store, error }) => {
+  const authHeader = headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw error('UNAUTHORIZED', 'Missing or invalid authorization header')
+  }
+
+  const token = authHeader.slice(7)
+  const user = await validateJWT(token)
+  
+  if (!user) {
+    throw error('UNAUTHORIZED', 'Invalid token')
+  }
+  
+  return { ...store, user }
+}
+
+const protectedRouter = new Router('admin', {
+  schema: adminSchema,
+  version: 1,
+  beforeHandler: [authHook]
+})
+
+protectedRouter.list(config, handler)
+```
+
+## 🔧 Raw Routes (Advanced)
+
+For maximum flexibility with third-party libraries (like Better Auth, Scalar, etc.), Norte provides `app.raw()` which gives you direct access to the Request/Response objects:
+
+```typescript
+import { Norte } from 'norte'
+
+const app = new Norte()
+
+// Simple raw route
+app.raw('GET', '/health', () => {
+  return () => new Response('OK', { status: 200 })
+})
+
+// Raw route with context
+app.raw('POST', '/webhook', () => {
+  return async ({ body, log }) => {
+    log.info({ event: body }, 'Webhook received')
+    return new Response(JSON.stringify({ received: true }), {
+      headers: { 'content-type': 'application/json' }
+    })
+  }
+})
+
+// Multiple methods
+app.raw(['POST', 'PUT'], '/data', () => {
+  return ({ request }) => {
+    return new Response(`Method: ${request.method}`)
+  }
+})
+
+// Wildcard method (all HTTP methods)
+app.raw('*', '/api/proxy', () => {
+  return async ({ request }) => {
+    // Proxy to external service
+    return fetch('https://external-api.com', request)
+  }
+})
+```
+
+### Catch-All Wildcard
+
+Use `/*` at the end of a path to match all sub-paths (catch-all):
+
+```typescript
+// Matches /auth/signin, /auth/api/signin, /auth/api/v1/signin, etc.
+app.raw('*', '/auth/*', () => {
+  return ({ request }) => {
+    // Handle any path under /auth/
+    return new Response(`Path: ${new URL(request.url).pathname}`)
+  }
+})
+```
+
+### Integration with Better Auth
+
+Perfect for integrating authentication libraries:
+
+```typescript
+import { Norte } from 'norte'
+import { betterAuth } from 'better-auth'
+
+const app = new Norte({
+  openapi: {
+    sources: [
+      { url: '/auth/open-api/generate-schema', label: 'Auth API' }
+    ]
+  }
+})
+
+// Register Better Auth with catch-all wildcard
+app.raw(['POST', 'GET'], '/auth/*', async (env) => {
+  const auth = betterAuth({
+    database: env.DATABASE_URL,
+    // ... your Better Auth config
+  })
+  
+  return ({ request }) => auth.handler(request)
+})
+
+// Your regular Norte routers
+const usersRouter = new Router('users', { schema: userSchema })
+usersRouter.list({}, async () => [{ id: '1', name: 'Alice' }])
+
+app.register(usersRouter)
+
+export default app
+```
+
+### Context Available in Raw Routes
+
+```typescript
+type RawHandlerContext = {
+  log: NorteLogger      // Structured logger with requestId
+  body: unknown         // Parsed JSON body (if content-type is application/json)
+  param: Record<string, unknown>  // Path parameters
+  query: Record<string, unknown>  // Query parameters
+  request: Request      // Raw HTTP request
+  env: Env             // Environment variables (Cloudflare Workers) or process.env
+}
+```
+
+### Route Priority
+
+Raw routes have **higher priority** than normal routers and are matched first:
+
+```typescript
+// This raw route will match before any router
+app.raw('GET', '/v1/users', () => {
+  return () => new Response('From raw route')
+})
+
+// This router will NOT match for GET /v1/users
+const usersRouter = new Router('users', { schema: userSchema })
+app.register(usersRouter)
+```
+
+### Use Cases
+
+- **Authentication**: Better Auth, NextAuth, Auth.js
+- **Documentation**: Scalar, Swagger UI, ReDoc
+- **Webhooks**: Stripe, GitHub, custom webhooks
+- **File Uploads**: Multipart form data handling
+- **Proxies**: Forward requests to external APIs
+- **Legacy APIs**: Gradual migration from existing systems
+
+## 🌐 Platform Support
+
+Norte's WinterCG-compatible `app.fetch` runs on:
+
+- **Bun**: `Bun.serve({ fetch: app.fetch })`
+- **Node.js**: With `@cloudflare/workers-types`
+- **Cloudflare Workers**: Direct deployment
+- **Vercel**: Edge functions
+- **Deno**: With compatibility layer
+
+## 📦 Publishing
+
+### Building for Production
+
+```bash
+# Run tests
+bun test
+
+# Build the project
+bun run build
+
+# Verify build output
+ls dist/
+```
+
+### Publishing to npm
+
+```bash
+# 1. Update version in package.json (semver)
+# Example: 0.2.0 -> 0.3.0 (minor), 0.2.1 (patch), 1.0.0 (major)
+
+# 2. Run tests before publishing
+bun test
+
+# 3. Build the project
+bun run build
+
+# 4. Publish to npm
+npm publish
+
+# 5. Verify installation
+npx norte@latest --version
+```
+
+### Version Strategy
+
+Norte follows [Semantic Versioning](https://semver.org/):
+
+- **Major** (1.0.0): Breaking changes
+- **Minor** (0.2.0): New features, backwards compatible
+- **Patch** (0.2.1): Bug fixes, backwards compatible
+
+### Pre-publish Checklist
+
+- [ ] All tests passing (`bun test`)
+- [ ] README and docs updated
+- [ ] Version bumped in `package.json`
+- [ ] CHANGELOG updated (if exists)
+- [ ] Build succeeds (`bun run build`)
+- [ ] Clean working directory (`git status`)
 
 ## 🤝 Contributing
 
@@ -642,7 +950,6 @@ MIT © Emerson Laurentino
 
 ## 🔗 Links
 
-- [Better Auth](https://better-auth.com)
-- [Hono](https://hono.dev)
-- [Zod](https://zod.dev)
-- [Scalar](https://scalar.com)
+- [TypeBox](https://github.com/sinclairzx81/typebox)
+- [AJV](https://ajv.js.org/)
+- [WinterCG](https://wintercg.org/)
