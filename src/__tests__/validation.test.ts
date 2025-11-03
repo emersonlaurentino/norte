@@ -29,7 +29,6 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    // Invalid: name too short
     const req1 = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -42,7 +41,6 @@ describe('Schema Validation', () => {
     expect(data1.error).toBe('INVALID_INPUT')
     expect(data1.message).toContain('Body validation failed')
 
-    // Invalid: missing required field
     const req2 = new Request('http://localhost/v1/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -78,14 +76,12 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    // Valid query params
     const req1 = new Request('http://localhost/v1/users?limit=10&page=1', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
-    // Invalid: limit too high
     const req2 = new Request('http://localhost/v1/users?limit=200&page=1', {
       method: 'GET',
     })
@@ -120,12 +116,10 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    // Valid: numeric ID
     const req1 = new Request('http://localhost/v1/users/123', { method: 'GET' })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
-    // Invalid: non-numeric ID
     const req2 = new Request('http://localhost/v1/users/abc', { method: 'GET' })
     const res2 = await app.fetch(req2)
     expect(res2.status).toBe(400)
@@ -145,7 +139,7 @@ describe('Schema Validation', () => {
     usersRouter.list(
       {
         query: t.Object({
-          limit: t.Number(), // Should coerce string to number
+          limit: t.Number(),
         }),
       },
       async ({ query }) => {
@@ -157,7 +151,6 @@ describe('Schema Validation', () => {
 
     app.register(usersRouter)
 
-    // Query params come as strings, but should be coerced to number
     const req = new Request('http://localhost/v1/users?limit=20', {
       method: 'GET',
     })
@@ -181,14 +174,13 @@ describe('Schema Validation', () => {
       },
       async ({ query }) => {
         const limit = (query as { limit: number }).limit
-        expect(limit).toBe(10) // Should use default
+        expect(limit).toBe(10)
         return [{ id: '1', name: 'User' }]
       },
     )
 
     app.register(usersRouter)
 
-    // No query params provided, should use defaults
     const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
     expect(res.status).toBe(200)
@@ -203,7 +195,6 @@ describe('Schema Validation', () => {
 
     const usersRouter = new Router('users', { schema: userSchema })
     usersRouter.read({}, async () => {
-      // Return invalid response (missing required field)
       return { id: '1' } as { id: string; name: string }
     })
 
@@ -227,11 +218,10 @@ describe('Schema Validation', () => {
 
     const usersRouter = new Router('users', { schema: userSchema })
     usersRouter.list({}, async () => {
-      // Return array with one invalid item
-      return [
-        { id: '1', name: 'Alice' },
-        { id: '2' }, // Missing name
-      ] as { id: string; name: string }[]
+      return [{ id: '1', name: 'Alice' }, { id: '2' }] as {
+        id: string
+        name: string
+      }[]
     })
 
     app.register(usersRouter)

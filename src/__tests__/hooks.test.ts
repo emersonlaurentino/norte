@@ -23,7 +23,6 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
       if (!token) {
         throw new NorteError('UNAUTHORIZED', 'Missing authorization token')
       }
-      // Simulate token validation
       return { ...store, userId: 'user-123', authenticated: true }
     }
 
@@ -33,7 +32,6 @@ describe('Hooks (beforeHandler and afterHandler)', () => {
     })
 
     usersRouter.list({}, async ({ store }) => {
-      // Store should have userId populated by beforeHandler
       expect(store.userId).toBe('user-123')
       expect(store.authenticated).toBe(true)
       return [{ id: store.userId || '', name: 'Alice' }]

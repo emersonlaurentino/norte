@@ -91,7 +91,6 @@ describe('Native Versioning', () => {
       email: t.String(),
     })
 
-    // Version 1
     const usersRouterV1 = new Router('users', {
       schema: userSchemaV1,
       version: 1,
@@ -100,7 +99,6 @@ describe('Native Versioning', () => {
       return [{ id: '1', name: 'Alice' }]
     })
 
-    // Version 2
     const usersRouterV2 = new Router('users', {
       schema: userSchemaV2,
       version: 2,
@@ -112,14 +110,12 @@ describe('Native Versioning', () => {
     app.register(usersRouterV1)
     app.register(usersRouterV2)
 
-    // Test v1
     const reqV1 = new Request('http://localhost/v1/users', { method: 'GET' })
     const resV1 = await app.fetch(reqV1)
     expect(resV1.status).toBe(200)
     const dataV1 = await resV1.json()
     expect(dataV1).toEqual([{ id: '1', name: 'Alice' }])
 
-    // Test v2
     const reqV2 = new Request('http://localhost/v2/users', { method: 'GET' })
     const resV2 = await app.fetch(reqV2)
     expect(resV2.status).toBe(200)
@@ -164,12 +160,10 @@ describe('Native Versioning', () => {
 
     app.register(usersRouter)
 
-    // Test list - GET /v2/users
     const listReq = new Request('http://localhost/v2/users', { method: 'GET' })
     const listRes = await app.fetch(listReq)
     expect(listRes.status).toBe(200)
 
-    // Test create - POST /v2/users
     const createReq = new Request('http://localhost/v2/users', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -178,14 +172,12 @@ describe('Native Versioning', () => {
     const createRes = await app.fetch(createReq)
     expect(createRes.status).toBe(201)
 
-    // Test read - GET /v2/users/:userId
     const readReq = new Request('http://localhost/v2/users/123', {
       method: 'GET',
     })
     const readRes = await app.fetch(readReq)
     expect(readRes.status).toBe(200)
 
-    // Test update - PATCH /v2/users/:userId
     const updateReq = new Request('http://localhost/v2/users/123', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -194,7 +186,6 @@ describe('Native Versioning', () => {
     const updateRes = await app.fetch(updateReq)
     expect(updateRes.status).toBe(200)
 
-    // Test delete - DELETE /v2/users/:userId
     const deleteReq = new Request('http://localhost/v2/users/123', {
       method: 'DELETE',
     })
@@ -227,14 +218,12 @@ describe('Native Versioning', () => {
     app.register(storesRouter)
     app.register(productsRouter)
 
-    // Parent should be at /v2/stores
     const storesReq = new Request('http://localhost/v2/stores', {
       method: 'GET',
     })
     const storesRes = await app.fetch(storesReq)
     expect(storesRes.status).toBe(200)
 
-    // Child should be at /v2/stores/:storeId/products
     const productsReq = new Request('http://localhost/v2/stores/123/products', {
       method: 'GET',
     })
@@ -260,7 +249,6 @@ describe('Native Versioning', () => {
 
     app.register(usersRouter)
 
-    // Add a raw route that works with versioned path
     app.raw('POST', '/v2/users/search', () => {
       return async () => {
         return new Response(
@@ -295,7 +283,6 @@ describe('Native Versioning', () => {
 
     app.register(usersRouter)
 
-    // Try to access v1 when only v2 exists
     const req = new Request('http://localhost/v1/users', { method: 'GET' })
     const res = await app.fetch(req)
 

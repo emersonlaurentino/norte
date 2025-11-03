@@ -4,7 +4,7 @@ import { Norte } from '../norte'
 import { Router } from '../router'
 
 describe('Scalar UI', () => {
-  it('deve servir Scalar UI na rota / por padrão', async () => {
+  it('should serve Scalar UI at route / by default', async () => {
     const app = new Norte()
 
     const req = new Request('http://localhost/')
@@ -14,10 +14,10 @@ describe('Scalar UI', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
 
     const html = await res.text()
-    expect(html).toContain('scalar') // Scalar deve estar presente no HTML
+    expect(html).toContain('scalar')
   })
 
-  it('deve servir Scalar UI quando openapi.ui é undefined', async () => {
+  it('should serve Scalar UI when openapi.ui is undefined', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',
@@ -31,7 +31,7 @@ describe('Scalar UI', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
   })
 
-  it('deve servir Scalar UI quando openapi.ui é true', async () => {
+  it('should serve Scalar UI when openapi.ui is true', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',
@@ -46,7 +46,7 @@ describe('Scalar UI', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
   })
 
-  it('NÃO deve servir Scalar UI quando openapi.ui é false', async () => {
+  it('should NOT serve Scalar UI when openapi.ui is false', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',
@@ -60,7 +60,7 @@ describe('Scalar UI', () => {
     expect(res.status).toBe(404)
   })
 
-  it('deve permitir raw route em / quando openapi.ui é false', async () => {
+  it('should allow raw route at / when openapi.ui is false', async () => {
     const app = new Norte({
       openapi: {
         ui: false,
@@ -78,10 +78,9 @@ describe('Scalar UI', () => {
     expect(await res.text()).toBe('Custom Root')
   })
 
-  it('NÃO deve permitir sobrescrever rota / com app.raw()', async () => {
+  it('should NOT allow overriding route / with app.raw()', async () => {
     const app = new Norte()
 
-    // Tenta registrar rota raw na /
     app.raw('GET', '/', () => {
       return () => new Response('Custom Root')
     })
@@ -89,7 +88,6 @@ describe('Scalar UI', () => {
     const req = new Request('http://localhost/')
     const res = await app.fetch(req)
 
-    // Scalar tem prioridade, então deve servir Scalar, não a rota raw
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/html')
 
@@ -98,7 +96,7 @@ describe('Scalar UI', () => {
     expect(html).toContain('scalar')
   })
 
-  it('deve permitir rotas raw em outros paths', async () => {
+  it('should allow raw routes on other paths', async () => {
     const app = new Norte()
 
     app.raw('GET', '/custom', () => {
@@ -112,7 +110,7 @@ describe('Scalar UI', () => {
     expect(await res.text()).toBe('Custom Route')
   })
 
-  it('deve servir Scalar UI e ainda funcionar com routers normais', async () => {
+  it('should serve Scalar UI and still work with normal routers', async () => {
     const app = new Norte()
 
     const userRouter = new Router('users', {
@@ -128,13 +126,11 @@ describe('Scalar UI', () => {
 
     app.register(userRouter)
 
-    // Testa Scalar na /
     const rootReq = new Request('http://localhost/')
     const rootRes = await app.fetch(rootReq)
     expect(rootRes.status).toBe(200)
     expect(rootRes.headers.get('content-type')).toContain('text/html')
 
-    // Testa router normal - routers usam /v1/ como prefixo
     const usersReq = new Request('http://localhost/v1/users', { method: 'GET' })
     const usersRes = await app.fetch(usersReq)
     expect(usersRes.status).toBe(200)
@@ -142,7 +138,7 @@ describe('Scalar UI', () => {
     expect(users).toEqual([{ id: '1', name: 'John' }])
   })
 
-  it('deve manter /openapi.json funcionando independente do Scalar', async () => {
+  it('should keep /openapi.json working regardless of Scalar', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',
@@ -161,18 +157,17 @@ describe('Scalar UI', () => {
     expect(doc.info.title).toBe('Test API')
   })
 
-  it('deve configurar Scalar para usar /openapi.json', async () => {
+  it('should configure Scalar to use /openapi.json', async () => {
     const app = new Norte()
 
     const req = new Request('http://localhost/')
     const res = await app.fetch(req)
 
     const html = await res.text()
-    // Verifica que o Scalar está configurado para usar /openapi.json
     expect(html).toContain('/openapi.json')
   })
 
-  it('deve adicionar o openapi do Norte automaticamente nas sources', async () => {
+  it('should add Norte openapi automatically to sources', async () => {
     const app = new Norte()
 
     const req = new Request('http://localhost/')
@@ -182,7 +177,7 @@ describe('Scalar UI', () => {
     expect(html).toContain('"sources":[{"url":"/openapi.json"}]')
   })
 
-  it('deve estender o source do Norte com sources customizadas', async () => {
+  it('should extend Norte source with custom sources', async () => {
     const app = new Norte({
       openapi: {
         title: 'Test API',

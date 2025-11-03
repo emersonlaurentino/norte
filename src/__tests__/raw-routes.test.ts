@@ -118,7 +118,6 @@ describe('Raw Routes', () => {
         }
       })
 
-      // Test different methods
       const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
       for (const method of methods) {
@@ -359,7 +358,6 @@ describe('Raw Routes', () => {
         }
       })
 
-      // Single level: /auth/signin
       const req1 = new Request('http://localhost/auth/signin', {
         method: 'POST',
       })
@@ -367,7 +365,6 @@ describe('Raw Routes', () => {
       const data1 = await res1.json()
       expect(data1.path).toBe('/auth/signin')
 
-      // Multi-level: /auth/api/signin
       const req2 = new Request('http://localhost/auth/api/signin', {
         method: 'POST',
       })
@@ -375,7 +372,6 @@ describe('Raw Routes', () => {
       const data2 = await res2.json()
       expect(data2.path).toBe('/auth/api/signin')
 
-      // Deep nesting: /auth/api/v1/signin
       const req3 = new Request('http://localhost/auth/api/v1/signin', {
         method: 'GET',
       })
@@ -427,7 +423,6 @@ describe('Raw Routes', () => {
         }
       })
 
-      // Test different combinations
       const tests = [
         { method: 'GET', path: '/api/auth/signin' },
         { method: 'POST', path: '/api/auth/signup' },
@@ -457,7 +452,6 @@ describe('Raw Routes', () => {
       const res1 = await app.fetch(req1)
       expect(res1.status).toBe(200)
 
-      // Note: Only catches single-level paths
       const req2 = new Request('http://localhost/single', {
         method: 'GET',
       })
@@ -470,7 +464,6 @@ describe('Raw Routes', () => {
     it('should simulate Better-Auth integration', async () => {
       const app = new Norte()
 
-      // Simulate Better-Auth handler
       const authHandler = () => {
         return ({ request }: { request: Request }) => {
           const url = new URL(request.url)
@@ -492,7 +485,6 @@ describe('Raw Routes', () => {
 
       app.raw('*', '/api/auth/:action', authHandler)
 
-      // Test signin
       const signinReq = new Request('http://localhost/api/auth/signin', {
         method: 'POST',
       })
@@ -501,7 +493,6 @@ describe('Raw Routes', () => {
       const signinData = await signinRes.json()
       expect(signinData.token).toBe('abc123')
 
-      // Test signout
       const signoutReq = new Request('http://localhost/api/auth/signout', {
         method: 'POST',
       })
@@ -594,7 +585,6 @@ describe('Raw Routes', () => {
     it('should prioritize raw() over routers', async () => {
       const app = new Norte()
 
-      // Register a router
       const usersRouter = new Router('users', {
         schema: t.Object({
           id: t.String(),
@@ -608,7 +598,6 @@ describe('Raw Routes', () => {
 
       app.register(usersRouter)
 
-      // Override with raw route
       app.raw('GET', '/v1/users', () => {
         return () => {
           return new Response(JSON.stringify([{ id: '2', name: 'From Raw' }]), {
@@ -628,12 +617,10 @@ describe('Raw Routes', () => {
     it('should allow raw() to coexist with routers on different paths', async () => {
       const app = new Norte()
 
-      // Raw route
       app.raw('GET', '/health', () => {
         return () => new Response('OK')
       })
 
-      // Router
       const usersRouter = new Router('users', {
         schema: t.Object({
           id: t.String(),
@@ -647,7 +634,6 @@ describe('Raw Routes', () => {
 
       app.register(usersRouter)
 
-      // Test raw route
       const healthReq = new Request('http://localhost/health', {
         method: 'GET',
       })
@@ -655,7 +641,6 @@ describe('Raw Routes', () => {
       expect(healthRes.status).toBe(200)
       expect(await healthRes.text()).toBe('OK')
 
-      // Test router
       const usersReq = new Request('http://localhost/v1/users', {
         method: 'GET',
       })
@@ -705,7 +690,6 @@ describe('Raw Routes', () => {
 
       app.raw('POST', '/context-test', () => {
         return ({ log, body, param, query, request, env }) => {
-          // All context properties should be available
           expect(log).toBeDefined()
           expect(body).toBeDefined()
           expect(param).toBeDefined()
@@ -771,7 +755,6 @@ describe('Raw Routes', () => {
 
       app.raw('POST', '/invalid-handler', () => {
         return ({ body }) => {
-          // Always throw to test error handling
           throw new Error(`Invalid data: ${JSON.stringify(body)}`)
         }
       })
@@ -846,7 +829,6 @@ describe('Raw Routes', () => {
         }
       })
 
-      // Multiple requests
       await app.fetch(
         new Request('http://localhost/lazy-test', { method: 'GET' }),
       )
@@ -857,7 +839,6 @@ describe('Raw Routes', () => {
         new Request('http://localhost/lazy-test', { method: 'GET' }),
       )
 
-      // Factory should be called only once
       expect(initCount).toBe(1)
     })
 

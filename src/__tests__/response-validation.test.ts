@@ -48,7 +48,6 @@ describe('Response Schema Validation', () => {
       return {
         id: '1',
         name: 'Alice',
-        // Missing email
       } as { id: string; name: string; email: string }
     })
 
@@ -215,7 +214,6 @@ describe('Response Schema Validation', () => {
       async () => {
         return {
           id: 'new-id',
-          // Missing name
         } as { id: string; name: string }
       },
     )
@@ -281,7 +279,6 @@ describe('Response Schema Validation', () => {
       async ({ param }) => {
         return {
           id: (param as { userId: string }).userId,
-          // Missing name
         } as { id: string; name: string }
       },
     )
@@ -309,7 +306,6 @@ describe('Response Schema Validation', () => {
 
     const usersRouter = new Router('users', { schema: userSchema })
     usersRouter.read({}, async () => {
-      // Return a Response object with invalid data (should not be validated)
       return new Response(JSON.stringify({ invalid: 'data' }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -386,7 +382,6 @@ describe('Response Schema Validation', () => {
           age: 30,
           address: {
             street: '123 Main St',
-            // Missing city
           },
         },
       } as {
@@ -422,7 +417,6 @@ describe('Response Schema Validation', () => {
       return {
         id: '1',
         name: 'Alice',
-        // email is optional, so it's OK to omit
       }
     })
 

@@ -63,7 +63,6 @@ describe('Pagination', () => {
         }),
       },
       async ({ pagination }) => {
-        // Page 2 with limit 10 should have offset 10
         expect(pagination.offset).toBe(10)
         return [{ id: '11', name: 'User 11' }]
       },
@@ -126,12 +125,10 @@ describe('Pagination', () => {
         }),
       },
       async ({ pagination }) => {
-        // Page 5 with limit 25 should have offset 100
         expect(pagination.page).toBe(5)
         expect(pagination.limit).toBe(25)
         expect(pagination.offset).toBe(100)
 
-        // Simulate returning a page of results
         const results: Array<{ id: string; name: string }> = []
         for (let i = 0; i < pagination.limit; i++) {
           results.push({
@@ -177,21 +174,18 @@ describe('Pagination', () => {
 
     app.register(usersRouter)
 
-    // Invalid: page less than 1
     const req1 = new Request('http://localhost/v1/users?page=0&limit=10', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(400)
 
-    // Invalid: limit greater than 100
     const req2 = new Request('http://localhost/v1/users?page=1&limit=200', {
       method: 'GET',
     })
     const res2 = await app.fetch(req2)
     expect(res2.status).toBe(400)
 
-    // Valid
     const req3 = new Request('http://localhost/v1/users?page=1&limit=50', {
       method: 'GET',
     })
@@ -219,7 +213,6 @@ describe('Pagination', () => {
         const pageSize = (query as { pageSize: number }).pageSize
         const offset = (pageNumber - 1) * pageSize
 
-        // Simulate paginated results
         const results: Array<{ id: string; name: string }> = []
         for (let i = 0; i < pageSize; i++) {
           results.push({
@@ -302,7 +295,6 @@ describe('Pagination', () => {
         }),
       },
       async ({ pagination }) => {
-        // Page 100 might have no results
         expect(pagination.page).toBe(100)
         return []
       },
@@ -336,7 +328,6 @@ describe('Pagination', () => {
         }),
       },
       async ({ query, pagination }) => {
-        // Even though query params come as strings, they should be coerced to numbers
         expect(typeof (query as { page: number }).page).toBe('number')
         expect(typeof (query as { limit: number }).limit).toBe('number')
         expect(pagination.page).toBe(3)

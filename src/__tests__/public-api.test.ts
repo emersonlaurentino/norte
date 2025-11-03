@@ -8,31 +8,25 @@ describe('Public API', () => {
     it('should only expose register and fetch as public methods', () => {
       const app = new Norte()
 
-      // Get all property names from the instance and its prototype
       const instanceProps = Object.getOwnPropertyNames(app)
       const prototypeProps = Object.getOwnPropertyNames(
         Object.getPrototypeOf(app),
       )
       const allProps = [...new Set([...instanceProps, ...prototypeProps])]
 
-      // Filter to get only public methods (not starting with private indicators)
       const publicMethods = allProps.filter((prop) => {
-        // Skip constructor and private properties
         if (prop === 'constructor') return false
 
         const descriptor =
           Object.getOwnPropertyDescriptor(app, prop) ||
           Object.getOwnPropertyDescriptor(Object.getPrototypeOf(app), prop)
 
-        // Check if it's a method (function)
         const value = descriptor?.value
         return typeof value === 'function'
       })
 
-      // Expected public methods
       const expectedPublicMethods = ['register', 'fetch', 'raw']
 
-      // Check that only expected methods are public
       expect(publicMethods.sort()).toEqual(expectedPublicMethods.sort())
     })
 
@@ -75,28 +69,23 @@ describe('Public API', () => {
       })
       const router = new Router('users', { schema: userSchema })
 
-      // Get all property names from the instance and its prototype
       const instanceProps = Object.getOwnPropertyNames(router)
       const prototypeProps = Object.getOwnPropertyNames(
         Object.getPrototypeOf(router),
       )
       const allProps = [...new Set([...instanceProps, ...prototypeProps])]
 
-      // Filter to get only public methods (not starting with private indicators)
       const publicMethods = allProps.filter((prop) => {
-        // Skip constructor and static methods
         if (prop === 'constructor') return false
 
         const descriptor =
           Object.getOwnPropertyDescriptor(router, prop) ||
           Object.getOwnPropertyDescriptor(Object.getPrototypeOf(router), prop)
 
-        // Check if it's a method (function)
         const value = descriptor?.value
         return typeof value === 'function'
       })
 
-      // Expected public methods
       const expectedPublicMethods = [
         'create',
         'list',
@@ -105,7 +94,6 @@ describe('Public API', () => {
         'update',
       ]
 
-      // Check that only expected methods are public
       expect(publicMethods.sort()).toEqual(expectedPublicMethods.sort())
     })
 
@@ -116,14 +104,12 @@ describe('Public API', () => {
       })
       const router = new Router('users', { schema: userSchema })
 
-      // Test that all methods exist and return the router instance (for chaining)
       expect(typeof router.list).toBe('function')
       expect(typeof router.create).toBe('function')
       expect(typeof router.read).toBe('function')
       expect(typeof router.update).toBe('function')
       expect(typeof router.delete).toBe('function')
 
-      // Test method chaining
       const result = router
         .list({}, async () => [])
         .create({}, async () => ({ id: '1', name: 'test' }))

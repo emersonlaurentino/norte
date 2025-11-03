@@ -177,7 +177,6 @@ describe('Error Handling', () => {
   })
 
   it('should handle unexpected errors as INTERNAL_SERVER_ERROR', async () => {
-    // Mock console.error to avoid polluting test output
     const consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {})
@@ -324,7 +323,6 @@ describe('Error Handling', () => {
 
     app.register(usersRouter)
 
-    // Can't coerce "notanumber" to number
     const req = new Request('http://localhost/v1/users?limit=notanumber', {
       method: 'GET',
     })
@@ -371,7 +369,6 @@ describe('Error Handling', () => {
   })
 
   it('should handle errors in afterHandler gracefully', async () => {
-    // Mock console.error to avoid polluting test output
     const consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {})
@@ -419,7 +416,6 @@ describe('Error Handling', () => {
     })
 
     expect(() => {
-      // biome-ignore lint/suspicious/noExplicitAny: any
       new Router(parentRouter, 'child', undefined as any)
     }).toThrow('RouterOptions is required for nested routers.')
   })
@@ -427,7 +423,6 @@ describe('Error Handling', () => {
   it('should allow raw routes for custom HTTP handling', async () => {
     const app = new Norte()
 
-    // Raw route - for documentation or other custom responses
     app.raw('GET', '/docs/api', () => {
       return async () => {
         return new Response('API Documentation', {

@@ -18,13 +18,11 @@ describe('Nested Routing', () => {
       storeId: t.String(),
     })
 
-    // Parent router: /stores
     const storesRouter = new Router('stores', { schema: storeSchema })
     storesRouter.list({}, async () => {
       return [{ id: '1', name: 'Store 1' }]
     })
 
-    // Child router: /stores/:storeId/products
     const productsRouter = new Router(storesRouter, 'products', {
       schema: productSchema,
     })
@@ -39,14 +37,12 @@ describe('Nested Routing', () => {
     app.register(storesRouter)
     app.register(productsRouter)
 
-    // Test parent route
     const req1 = new Request('http://localhost/v1/stores', { method: 'GET' })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
     const data1 = await res1.json()
     expect(data1).toEqual([{ id: '1', name: 'Store 1' }])
 
-    // Test nested route
     const req2 = new Request('http://localhost/v1/stores/store123/products', {
       method: 'GET',
     })
@@ -77,22 +73,17 @@ describe('Nested Routing', () => {
       name: t.String(),
     })
 
-    // Level 1: /countries
     const countriesRouter = new Router('countries', { schema: countrySchema })
 
-    // Level 2: /countries/:countryId/cities
     const citiesRouter = new Router(countriesRouter, 'cities', {
       schema: citySchema,
     })
 
-    // Level 3: /countries/:countryId/cities/:cityId/locations
     const locationsRouter = new Router(citiesRouter, 'locations', {
       schema: locationSchema,
     })
 
     locationsRouter.list({}, async ({ param }) => {
-      // The param object might have different structure based on implementation
-      // Let's check what params we actually receive
       const paramObj = param as Record<string, string>
       return [
         {
@@ -110,7 +101,6 @@ describe('Nested Routing', () => {
     )
     const res = await app.fetch(req)
     expect(res.status).toBe(200)
-    // Just verify it returns successfully, the actual param handling may need fixes
     const data = await res.json()
     expect(Array.isArray(data)).toBe(true)
     expect(data).toHaveLength(1)
@@ -135,7 +125,6 @@ describe('Nested Routing', () => {
       schema: productSchema,
     })
 
-    // GET /stores/:storeId/products/:productId
     productsRouter.read({}, async ({ param }) => {
       const storeId = (param as { storeId: string; productId: string }).storeId
       const productId = (param as { storeId: string; productId: string })
@@ -173,7 +162,6 @@ describe('Nested Routing', () => {
       schema: productSchema,
     })
 
-    // POST /stores/:storeId/products
     productsRouter.create(
       {
         body: t.Object({
@@ -222,7 +210,6 @@ describe('Nested Routing', () => {
       schema: productSchema,
     })
 
-    // PATCH /stores/:storeId/products/:productId
     productsRouter.update(
       {
         body: t.Object({
@@ -267,9 +254,7 @@ describe('Nested Routing', () => {
       schema: productSchema,
     })
 
-    // DELETE /stores/:storeId/products/:productId
     productsRouter.delete({}, async ({ param }) => {
-      // Return valid response to satisfy schema
       return {
         id: (param as { productId: string }).productId || 'p1',
         name: 'Deleted',
@@ -298,7 +283,6 @@ describe('Nested Routing', () => {
       title: t.String(),
     })
 
-    // Domain "users" should generate parameter "userId" (removing "s")
     const usersRouter = new Router('users', { schema: userSchema })
     const postsRouter = new Router(usersRouter, 'posts', { schema: postSchema })
 
@@ -331,7 +315,6 @@ describe('Nested Routing', () => {
       name: t.String(),
     })
 
-    // Domain "company" should generate parameter "companyId" (just append "Id")
     const companyRouter = new Router('company', { schema: companySchema })
     const employeesRouter = new Router(companyRouter, 'employees', {
       schema: employeeSchema,
@@ -385,14 +368,12 @@ describe('Nested Routing', () => {
 
     app.register(productsRouter)
 
-    // Valid: numeric storeId
     const req1 = new Request('http://localhost/v1/stores/123/products', {
       method: 'GET',
     })
     const res1 = await app.fetch(req1)
     expect(res1.status).toBe(200)
 
-    // Invalid: non-numeric storeId
     const req2 = new Request('http://localhost/v1/stores/abc/products', {
       method: 'GET',
     })

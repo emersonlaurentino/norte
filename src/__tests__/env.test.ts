@@ -4,7 +4,6 @@ import { Norte } from '../norte'
 import { Router } from '../router'
 import type { NorteStore } from '../types'
 
-// Extend the Env interface to add custom environment variables
 declare module '../types' {
   interface Env {
     DATABASE_URL?: string
@@ -21,7 +20,6 @@ describe('Environment (env)', () => {
   let router: Router
 
   beforeEach(() => {
-    // Initialize app without env - it will be loaded automatically
     app = new Norte({
       logger: false,
     })
@@ -35,7 +33,6 @@ describe('Environment (env)', () => {
   })
 
   test('should access env in handler (from process.env)', async () => {
-    // Set process.env for testing
     process.env.DATABASE_URL = 'postgres://localhost:5432/testdb'
     process.env.API_KEY = 'secret-api-key-123'
 
@@ -46,7 +43,6 @@ describe('Environment (env)', () => {
         }),
       },
       async (ctx) => {
-        // Access env variables
         const dbUrl = ctx.env.DATABASE_URL
         const apiKey = ctx.env.API_KEY
 
@@ -77,7 +73,6 @@ describe('Environment (env)', () => {
       apiKey: 'secret-api-key-123',
     })
 
-    // Clean up
     delete process.env.DATABASE_URL
     delete process.env.API_KEY
   })
@@ -94,7 +89,6 @@ describe('Environment (env)', () => {
         }),
         beforeHandler: [
           async (ctx) => {
-            // Access env in before hook
             const dbUrl = ctx.env.DATABASE_URL
             logs.push(`Before hook: ${dbUrl}`)
             return ctx.store
@@ -136,7 +130,6 @@ describe('Environment (env)', () => {
         }),
         afterHandler: [
           async (ctx) => {
-            // Access env in after hook
             const apiKey = ctx.env.API_KEY
             logs.push(`After hook: ${apiKey}`)
           },
@@ -173,7 +166,6 @@ describe('Environment (env)', () => {
         }),
       },
       async (ctx) => {
-        // Access KV binding
         const value = await ctx.env.KV?.get('test-key')
 
         return {
@@ -190,16 +182,13 @@ describe('Environment (env)', () => {
       method: 'GET',
     })
 
-    // Simulate Cloudflare Workers env
     const cloudflareEnv = {
       KV: {
         get: async (key: string) => {
           if (key === 'test-key') return 'test-value'
           return null
         },
-        put: async (_key: string, _value: string) => {
-          // Mock implementation
-        },
+        put: async (_key: string, _value: string) => {},
       },
     }
 
@@ -218,7 +207,6 @@ describe('Environment (env)', () => {
 
     app.raw('GET', '/health', () => {
       return async (ctx) => {
-        // Access env in raw route
         const dbUrl = ctx.env.DATABASE_URL
 
         return new Response(
@@ -268,7 +256,6 @@ describe('Environment (env)', () => {
         }),
       },
       async (ctx) => {
-        // env should exist but be empty
         const hasEnv = ctx.env !== undefined
 
         return {

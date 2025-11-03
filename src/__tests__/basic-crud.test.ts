@@ -139,7 +139,6 @@ describe('Basic CRUD Operations', () => {
 
     const usersRouter = new Router('users', { schema: userSchema })
     usersRouter.delete({}, async ({ param }) => {
-      // Delete should return the deleted object to satisfy schema validation
       return { id: (param as { userId: string }).userId, name: 'Deleted' }
     })
 

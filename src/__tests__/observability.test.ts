@@ -25,7 +25,6 @@ describe('Observability', () => {
 
       const usersRouter = new Router('users', { schema: userSchema })
       usersRouter.list({}, async ({ log }) => {
-        // Capture the logger to verify it has requestId
         capturedLog = log
         log.info({ test: 'data' }, 'Test log message')
         return [{ id: '1', name: 'Alice' }]
@@ -38,12 +37,11 @@ describe('Observability', () => {
 
       expect(res.status).toBe(200)
       expect(capturedLog).toBeDefined()
-      // Logger should be a Pino instance with requestId in bindings
       const logger = capturedLog as unknown as NorteLogger
       expect(logger.bindings).toBeDefined()
       expect(logger.bindings()).toHaveProperty('requestId')
       expect(typeof logger.bindings().requestId).toBe('string')
-      expect(logger.bindings().requestId).toMatch(/^[a-f0-9-]+$/) // UUID format
+      expect(logger.bindings().requestId).toMatch(/^[a-f0-9-]+$/)
     })
 
     it('should inject logger with requestId in beforeHandler hooks', async () => {
@@ -129,13 +127,11 @@ describe('Observability', () => {
 
       app.register(usersRouter)
 
-      // Make 3 requests
       for (let i = 0; i < 3; i++) {
         const req = new Request('http://localhost/v1/users', { method: 'GET' })
         await app.fetch(req)
       }
 
-      // All requestIds should be unique
       expect(requestIds).toHaveLength(3)
       expect(new Set(requestIds).size).toBe(3)
     })
@@ -257,7 +253,6 @@ describe('Observability', () => {
       const req = new Request('http://localhost/v1/users', { method: 'GET' })
       await app.fetch(req)
 
-      // Logger should be a noop logger
       expect(capturedLog).toBeDefined()
       const logger = capturedLog as unknown as NorteLogger
       expect(logger.level).toBe('silent')
@@ -290,7 +285,6 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedBindings).toHaveProperty('requestId')
-      // When telemetry is enabled, should have trace_id
       expect(capturedBindings).toHaveProperty('trace_id')
       const bindings = capturedBindings as unknown as { trace_id: string }
       expect(typeof bindings.trace_id).toBe('string')
@@ -317,7 +311,6 @@ describe('Observability', () => {
 
       app.register(usersRouter)
 
-      // W3C Trace Context format
       const traceParent =
         '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
       const req = new Request('http://localhost/v1/users', {
@@ -329,7 +322,6 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedBindings).toHaveProperty('trace_id')
-      // Extract trace-id from traceParent (32 hex chars after version-traceId)
       const bindings = capturedBindings as unknown as { trace_id: string }
       expect(bindings.trace_id).toBe('0af7651916cd43dd8448eb211c80319c')
     })
@@ -355,7 +347,6 @@ describe('Observability', () => {
       await app.fetch(req)
 
       expect(capturedBindings).toHaveProperty('requestId')
-      // When telemetry is NOT enabled, should NOT have trace_id
       expect(capturedBindings).not.toHaveProperty('trace_id')
     })
   })
