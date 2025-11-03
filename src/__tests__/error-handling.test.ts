@@ -2,7 +2,6 @@ import { Type as t } from '@sinclair/typebox'
 import { describe, expect, it, vi } from 'vitest'
 import { Norte } from '../norte'
 import { NorteError, Router } from '../router'
-import type { NorteStore } from '../types'
 
 describe('Error Handling', () => {
   it('should handle NorteError with NOT_FOUND', async () => {
